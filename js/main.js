@@ -60,8 +60,16 @@ function updateAdminToggleVisibility() {
     const btn = document.getElementById('go-to-admin-btn');
     if (!btn) return;
     const isAdmin = !!(currentUserProfile && currentUserProfile.role === 'admin');
-    if (isAdmin) { btn.classList.remove('hidden'); }
-    else { btn.classList.add('hidden'); }
+    // Sempre escondido no mobile
+    btn.classList.add('hidden');
+    // Controla visibilidade em telas md+ via classes responsivas
+    if (isAdmin) {
+      btn.classList.remove('md:hidden');
+      btn.classList.add('md:inline-block');
+    } else {
+      btn.classList.remove('md:inline-block');
+      btn.classList.add('md:hidden');
+    }
   } catch {}
 }
 
@@ -347,15 +355,15 @@ async function initialize() {
     formTipo.addEventListener('change', populateCategories);
     populateCategories();
 
-    // Filtro padrão: mês atual (apenas se nenhum valor estiver definido)
+    // Filtro padrão: do último dia do mês anterior ao último dia do mês atual (se não definido)
     try {
       if (filterStartDate && filterEndDate && !filterStartDate.value && !filterEndDate.value) {
         const now = new Date();
-        const start = new Date(now.getFullYear(), now.getMonth(), 1);
-        const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        const prevMonthLastDay = new Date(now.getFullYear(), now.getMonth(), 0); // dia 0 do mês atual = último do mês anterior
+        const currentMonthLastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
         const toYmd = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-        filterStartDate.value = toYmd(start);
-        filterEndDate.value = toYmd(end);
+        filterStartDate.value = toYmd(prevMonthLastDay);
+        filterEndDate.value = toYmd(currentMonthLastDay);
       }
     } catch {}
 
@@ -863,12 +871,13 @@ function updateChart(transacoes) {
   const data = Object.values(gastosPorCategoria);
   if (chartInstance) chartInstance.destroy();
   if (labels.length > 0) {
+    // garante visibilidade da área do gráfico
+    try { const wrap = categoryChartCanvas.parentElement; if (wrap) { wrap.style.display = 'block'; wrap.style.minHeight = '240px'; } } catch {}
     const ctx = categoryChartCanvas.getContext('2d');
     chartInstance = new Chart(ctx, { type:'doughnut', data:{ labels, datasets:[{ label:'Gastos por Categoria', data, backgroundColor:['#3b82f6','#ef4444','#f97316','#eab308','#22c55e','#14b8a6','#6366f1','#a855f7','#ec4899','#84cc16'], hoverOffset:4 }]}, options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'right' } } } });
   } else {
-    const ctx = categoryChartCanvas.getContext('2d');
-    ctx.clearRect(0,0,categoryChartCanvas.width,categoryChartCanvas.height);
-    ctx.textAlign='center'; ctx.fillStyle='#6b7280'; ctx.font='16px Inter'; ctx.fillText('Nenhum gasto (pago) para exibir.', categoryChartCanvas.width/2, categoryChartCanvas.height/2);
+    // retrai a área do gráfico quando vazio
+    try { const wrap = categoryChartCanvas.parentElement; if (wrap) { wrap.style.display = 'none'; } } catch {}
   }
 }
 
@@ -887,7 +896,9 @@ function updateMonthlyChart(transacoes) {
   const labels = keys.slice(-12);
   const data = labels.map(k => byMonth[k]);
   if (monthlyChartInstance) monthlyChartInstance.destroy();
+  const block = monthlyChartCanvas.parentElement ? monthlyChartCanvas.parentElement.parentElement : null; // bloco com título
   if (labels.length > 0) {
+    try { if (block) { block.style.display = 'block'; } } catch {}
     const ctx = monthlyChartCanvas.getContext('2d');
     monthlyChartInstance = new Chart(ctx, {
       type: 'bar',
@@ -895,9 +906,8 @@ function updateMonthlyChart(transacoes) {
       options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
     });
   } else {
-    const ctx = monthlyChartCanvas.getContext('2d');
-    ctx.clearRect(0,0,monthlyChartCanvas.width,monthlyChartCanvas.height);
-    ctx.textAlign='center'; ctx.fillStyle='#6b7280'; ctx.font='16px Inter'; ctx.fillText('Sem gastos pagos no período.', monthlyChartCanvas.width/2, monthlyChartCanvas.height/2);
+    // retrai bloco mensal quando vazio
+    try { if (block) { block.style.display = 'none'; } } catch {}
   }
 }
 

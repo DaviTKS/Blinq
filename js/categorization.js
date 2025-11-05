@@ -2,14 +2,15 @@ export const CATEGORY_RULES = {
   pagar: {
     "Outros": ["mercado pago"],
     "Alimentação": ["atacad","pizza", "hamburg", "mercado", "choco", "mercadinho", "supermercado", "ifood", "rappi", "padaria", "restaurante", "zé delivery", "açougue", "hortifruti"],
-    "Transporte": ["uber", "99", "99pop", "99app", "combust", "posto", "ipiranga", "shell", "estaciona"],
+    "Transporte": ["uber", "99", "99pop", "99app", "combust", "posto", "ipiranga", "shell", "estaciona", "sete estrelas"],
     "Moradia": ["aluguel", "condom", "condomínio", "aluguer"],
     "Saúde": ["farmácia", "farmacia", "drogasil", "drogaria", "panvel", "consulta", "laboratório", "laboratorio", "exame"],
     "Lazer": ["netflix", "spotify", "prime video", "disney+", "cinema", "ingresso"],
-    "Contas": ["fatura", "energia", "luz", "enel", "cpfl", "água", "agua", "sabesp", "internet", "vivo", "claro", "tim", "oi", "iptu", "ipva"],
+    "Contas": ["energia", "luz", "enel", "cpfl", "água", "agua", "sabesp", "internet", "vivo", "claro", "tim", "oi", "iptu", "ipva"],
     "Beleza": ["barbearia", "salão", "unhas", "cabeleireiro"],
     "Investimentos": ["rdb", "invest", "dividend"],
-    "Compras Online": ["shp", "ml", "meli", "mercado livre", "ali", "shein"]
+    "Cartão de Crédito": ["fatura", "crédito"],
+    "Compras Online": ["shp", "ml", "meli", "mercado livre", "ali", "shein", "ai", "aibr"]
   },
   receber: {
     "Salário": ["salário", "salario", "pagamento", "holerite"],
