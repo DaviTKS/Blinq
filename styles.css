@@ -1,0 +1,133 @@
+/* Estilo base com a fonte Inter */
+body {
+  font-family: 'Inter', sans-serif;
+}
+
+/* Estilo para o Toaster */
+#toaster {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  z-index: 100;
+}
+
+.toast {
+  padding: 1rem 1.5rem;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  color: white;
+  opacity: 0;
+  transform: translateX(100%);
+  transition: all 0.3s ease-in-out;
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.toast-success {
+  background-color: #28a745; /* Verde */
+}
+
+.toast-error {
+  background-color: #dc3545; /* Vermelho */
+}
+
+/* Estilo para o Spinner de Loading (AGORA DESATIVADO) */
+/*
+#loading-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(255, 255, 255, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+  backdrop-filter: blur(4px);
+}
+
+.spinner {
+  width: 56px;
+  height: 56px;
+  border: 6px solid #f3f3f3;
+  border-top: 6px solid #3b82f6; 
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+*/
+
+/* Estilo para o Modal de Confirmação */
+#confirm-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: none; /* Começa escondido */
+  justify-content: center;
+  align-items: center;
+  z-index: 9998;
+  opacity: 0;
+  transition: opacity 0.2s ease-in-out;
+}
+#confirm-modal {
+  background: white;
+  padding: 2rem;
+  border-radius: 0.75rem;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+  width: 90%;
+  max-width: 400px;
+  transform: scale(0.95);
+  transition: transform 0.2s ease-in-out;
+}
+#confirm-modal-backdrop.visible {
+  display: flex;
+  opacity: 1;
+}
+#confirm-modal-backdrop.visible #confirm-modal {
+  transform: scale(1);
+}
+
+/* (removido) indicador do modo de edição */
+
+/* Indicação visual para linhas clicáveis no modo edição */
+#transactions-table-body.edit-mode tr {
+  cursor: pointer;
+  /* desativa jiggle anterior */
+  animation: none;
+  will-change: auto;
+}
+#transactions-table-body.edit-mode tr > td {
+  transition: background-color 0.15s ease-in-out;
+  animation: blink-red 1.2s ease-in-out infinite;
+}
+#transactions-table-body.edit-mode tr:hover > td {
+  animation: none;
+  background-color: #eef2ff; /* Indigo-50 */
+}
+
+/* Animação: leve piscar vermelho nas linhas */
+@keyframes blink-red {
+  0%, 100% { background-color: transparent; }
+  50%      { background-color: #fce9e9; /* Red-100 */ }
+}
+
+/* Respeita preferência de movimento reduzido */
+@media (prefers-reduced-motion: reduce) {
+  #transactions-table-body.edit-mode tr > td {
+    animation: none;
+    background-color: #fff5f5; /* vermelho bem suave estático */
+  }
+}
+

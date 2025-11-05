@@ -1,0 +1,1878 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Blinq - Controle Financeiro</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts (Inter) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+  <style>
+    /* Estilo base com a fonte Inter */
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+
+    /* Estilo para o Toaster */
+    #toaster {
+      position: fixed;
+      bottom: 1.5rem;
+      right: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      z-index: 100;
+    }
+
+    .toast {
+      padding: 1rem 1.5rem;
+      border-radius: 0.5rem;
+      font-weight: 500;
+      color: white;
+      opacity: 0;
+      transform: translateX(100%);
+      transition: all 0.3s ease-in-out;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateX(0);
+    }
+
+    .toast-success {
+      background-color: #28a745; /* Verde */
+    }
+
+    .toast-error {
+      background-color: #dc3545; /* Vermelho */
+    }
+
+    /* Estilo para o Spinner de Loading (AGORA DESATIVADO) */
+    /*
+    #loading-overlay {
+      position: fixed;
+      inset: 0;
+      background-color: rgba(255, 255, 255, 0.8);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+      backdrop-filter: blur(4px);
+    }
+
+    .spinner {
+      width: 56px;
+      height: 56px;
+      border: 6px solid #f3f3f3;
+      border-top: 6px solid #3b82f6; 
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      0% {
+        transform: rotate(0deg);
+      }
+      100% {
+        transform: rotate(360deg);
+      }
+    }
+    */
+    
+    /* Estilo para o Modal de Confirmação */
+    #confirm-modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background-color: rgba(0, 0, 0, 0.6);
+      display: none; /* Começa escondido */
+      justify-content: center;
+      align-items: center;
+      z-index: 9998;
+      opacity: 0;
+      transition: opacity 0.2s ease-in-out;
+    }
+    #confirm-modal {
+      background: white;
+      padding: 2rem;
+      border-radius: 0.75rem;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+      width: 90%;
+      max-width: 400px;
+      transform: scale(0.95);
+      transition: transform 0.2s ease-in-out;
+    }
+    #confirm-modal-backdrop.visible {
+      display: flex;
+      opacity: 1;
+    }
+    #confirm-modal-backdrop.visible #confirm-modal {
+      transform: scale(1);
+    }
+  </style>
+</head>
+
+<body class="bg-gray-100 min-h-screen">
+
+  <!-- Indicador de Loading (Spinner) -->
+  <!-- 
+  <div id="loading-overlay" class="hidden">
+    <div class="spinner"></div>
+  </div>
+  -->
+
+  <!-- Notificações "Toast" -->
+  <div id="toaster"></div>
+
+  <!-- Modal de Confirmação -->
+  <div id="confirm-modal-backdrop">
+    <div id="confirm-modal">
+      <h3 id="confirm-modal-title" class="text-xl font-bold text-gray-900">Confirmar Ação</h3>
+      <p id="confirm-modal-text" class="mt-2 text-gray-600">Tem certeza?</p>
+      <div class="mt-6 flex justify-end gap-3">
+        <button id="confirm-modal-cancel"
+          class="rounded-lg bg-gray-200 px-4 py-2 font-semibold text-gray-800 transition-all duration-200 hover:bg-gray-300">
+          Cancelar
+        </button>
+        <button id="confirm-modal-ok"
+          class="rounded-lg bg-red-600 px-4 py-2 font-semibold text-white shadow-md transition-all duration-200 hover:bg-red-700">
+          Confirmar
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 1. Ecrã de Login -->
+  <section id="login-screen" class="flex min-h-screen items-center justify-center">
+    <div class="w-full max-w-md p-8 bg-white shadow-xl rounded-xl">
+      <img src="logo.png" alt="Logo Blinq" class="w-24 h-24 mx-auto mb-6"
+           onerror="this.src='https://placehold.co/96x96/f0f9ff/3b82f6?text=Blinq'">
+      <h2 class="text-3xl font-bold text-center text-gray-900">Bem-vindo ao Blinq</h2>
+      <p class="mt-2 text-center text-gray-600">O seu assistente financeiro.</p>
+      <div class="mt-8">
+        <button id="login-btn"
+          class="flex w-full items-center justify-center gap-3 rounded-lg border border-gray-300 bg-white px-4 py-3 font-semibold text-gray-700 shadow-sm transition-all duration-200 hover:bg-gray-50 hover:shadow-md">
+          <!-- Logo SVG do Google -->
+          <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+            <path fill="#EA4335"
+              d="M24 9.5c3.54 0 6.71 1.22 9.21 3.61L39.01 7.29C35.08 3.63 30.04 1.5 24 1.5C14.62 1.5 6.51 7.15 3.1 15.53l8.03 6.22C12.72 15.82 17.9 9.5 24 9.5z">
+            </path>
+            <path fill="#4285F4"
+              d="M46.98 24.55c0-1.57-.15-3.09-.42-4.55H24v8.51h12.94c-.57 2.92-2.21 5.47-4.64 7.19l7.14 5.51C44.62 37.33 46.98 31.45 46.98 24.55z">
+            </path>
+            <path fill="#FBBC05"
+              d="M11.13 27.96C10.61 26.4 10.32 24.77 10.32 23.08c0-1.69.29-3.32.81-4.88l-8.03-6.22C1.15 15.19 0 18.98 0 23.08c0 4.09 1.15 7.89 3.1 11.02l8.03-6.14z">
+            </path>
+            <path fill="#34A853"
+              d="M24 46.5c6.5 0 11.97-2.16 15.95-5.87l-7.14-5.51c-2.16 1.46-5.01 2.3-8.81 2.3-6.1 0-11.28-4.08-13.11-9.57l-8.03 6.22C6.51 41.35 14.62 46.5 24 46.5z">
+            </path>
+            <path fill="none" d="M0 0h48v48H0z"></path>
+          </svg>
+          Entrar com a conta Google
+        </button>
+      </div>
+      <p id="login-error" class="mt-4 text-center text-red-500 text-sm hidden"></p>
+      
+      <!-- Linha de Depuração do Domínio -->
+      <p id="domain-debug" class="mt-4 text-center text-gray-400 text-xs"></p>
+
+    </div>
+  </section>
+
+  <!-- 2. Ecrã de Aguardando Aprovação -->
+  <section id="pending-screen" class="hidden flex min-h-screen items-center justify-center">
+    <div class="w-full max-w-md p-8 text-center bg-white shadow-xl rounded-xl">
+      <img src="logo.png" alt="Logo Blinq" class="w-24 h-24 mx-auto mb-6"
+           onerror="this.src='https://placehold.co/96x96/f0f9ff/3b82f6?text=Blinq'">
+      <h2 class="text-2xl font-bold text-gray-900">Conta Pendente</h2>
+      <p class="mt-2 text-gray-600">Logo logo seu acesso será liberado, estamos ansiosos para ter você conosco!</p>
+
+      <!-- NOVO: Formulário do Cupom -->
+      <div class="mt-8 border-t border-gray-200 pt-6">
+        <label for="coupon-input" class="block text-sm font-medium text-gray-700">Tem um cupom de acesso?</label>
+        <div class="mt-2 flex gap-2">
+          <input type="text" id="coupon-input" placeholder="Blinq2025"
+            class="block w-full rounded-lg border-2 border-gray-300 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-inset focus:ring-blue-500 px-3 py-2">
+          <button id="apply-coupon-btn"
+            class="rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white shadow-md transition-all duration-200 hover:bg-blue-700 hover:scale-105 whitespace-nowrap">
+            Aplicar
+          </button>
+        </div>
+        <p id="coupon-message" class="mt-2 text-center text-sm"></p> <!-- Mensagem de erro/sucesso -->
+      </div>
+      <!-- Fim do Formulário do Cupom -->
+
+      <button id="logout-btn-pending"
+        class="mt-8 w-full rounded-lg bg-red-600 px-4 py-3 font-semibold text-white shadow-md transition-all duration-200 hover:bg-red-700 hover:scale-105">
+        Sair
+      </button>
+    </div>
+  </section>
+
+  <!-- 3. Ecrã Principal da Aplicação (Dashboard) -->
+  <section id="app-screen" class="hidden">
+    <!-- Cabeçalho -->
+    <header class="bg-white shadow-md">
+      <nav class="container mx-auto max-w-7xl px-4 py-4 flex flex-col sm:flex-row sm:justify-between items-center gap-4 sm:gap-0">
+        <!-- Lado Esquerdo: Logo e Título -->
+        <div class="flex items-center gap-3">
+          <img src="logo.png" alt="Logo Blinq" class="h-10 w-10"
+               onerror="this.src='https://placehold.co/40x40/f0f9ff/3b82f6?text=B'">
+          <span class="text-2xl font-bold text-gray-800">Blinq</span>
+        </div>
+        <!-- Lado Direito: Perfil e Sair -->
+        <div class="flex items-center gap-4">
+          <div class="text-right text-center sm:text-right">
+            <div id="user-name" class="font-semibold text-gray-700"></div>
+            <div id="user-email" class="text-sm text-gray-500"></div>
+          </div>
+          <img id="user-photo" class="h-10 w-10 rounded-full" src="" alt="Foto de Perfil"
+               onerror="this.src='https://placehold.co/40x40/gray/white?text=A'">
+          <button id="logout-btn-main"
+            class="rounded-lg bg-red-600 px-4 py-2 font-semibold text-white shadow-sm transition-all duration-200 hover:bg-red-700 hover:scale-105">
+            Sair
+          </button>
+        </div>
+      </nav>
+    </header>
+
+    <!-- Conteúdo Principal -->
+    <main class="container mx-auto max-w-7xl p-6">
+      <!-- Resumo Financeiro -->
+      <section id="summary" class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <!-- Total a Receber -->
+        <div class="bg-white p-6 rounded-xl shadow-lg">
+          <h3 class="text-sm font-medium text-gray-500">Total a Receber (Pendente)</h3>
+          <p id="total-receber" class="text-3xl font-bold text-green-600">R$ 0,00</p>
+        </div>
+        <!-- Total a Pagar -->
+        <div class="bg-white p-6 rounded-xl shadow-lg">
+          <h3 class="text-sm font-medium text-gray-500">Total a Pagar (Pendente)</h3>
+          <p id="total-pagar" class="text-3xl font-bold text-red-600">R$ 0,00</p>
+        </div>
+        <!-- Saldo Atual -->
+        <div class="bg-white p-6 rounded-xl shadow-lg">
+          <h3 class="text-sm font-medium text-gray-500">Saldo Atual (Baseado no pago)</h3>
+          <p id="saldo-atual" class="text-3xl font-bold text-blue-600">R$ 0,00</p>
+        </div>
+      </section>
+
+      <!-- Filtros e Gráficos -->
+      <section id="filters-and-charts" class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+        <!-- Filtros -->
+        <div class="bg-white p-6 rounded-xl shadow-lg">
+          <h3 class="text-xl font-bold mb-4 text-gray-800">Filtros</h3>
+          <div class="space-y-4">
+            <div>
+              <label for="search-input" class="block text-sm font-medium text-gray-700">Pesquisar Descrição</label>
+              <input type="text" id="search-input"
+                class="mt-1 block w-full rounded-lg border-2 border-gray-300 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-inset focus:ring-blue-500 px-3 py-2">
+            </div>
+            <div>
+              <label for="filter-start-date" class="block text-sm font-medium text-gray-700">Data Início</label>
+              <input type="date" id="filter-start-date"
+                class="mt-1 block w-full rounded-lg border-2 border-gray-300 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-inset focus:ring-blue-500 px-3 py-2">
+            </div>
+            <div>
+              <label for="filter-end-date" class="block text-sm font-medium text-gray-700">Data Fim</label>
+              <input type="date" id="filter-end-date"
+                class="mt-1 block w-full rounded-lg border-2 border-gray-300 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-inset focus:ring-blue-500 px-3 py-2">
+            </div>
+            <button id="clear-filters-btn"
+              class="w-full rounded-lg bg-gray-500 px-4 py-2 font-semibold text-white shadow-sm transition-all duration-200 hover:bg-gray-600">
+              Limpar Filtros
+            </button>
+          </div>
+        </div>
+        <!-- Gráfico -->
+        <div class="bg-white p-6 rounded-xl shadow-lg lg:col-span-2">
+          <h3 class="text-xl font-bold mb-4 text-gray-800">Gastos por Categoria (Pago)</h3>
+          <div class="relative" style="height: 300px;">
+            <canvas id="category-chart"></canvas>
+          </div>
+        </div>
+      </section>
+
+      <!-- Adicionar Novo Lançamento -->
+      <section id="add-transaction" class="bg-white p-6 rounded-xl shadow-lg mb-8">
+        <h2 class="text-xl font-bold mb-4 text-gray-800">Adicionar Novo Lançamento</h2>
+        <form id="transaction-form" class="grid grid-cols-1 md:grid-cols-5 gap-4">
+          <!-- Descrição -->
+          <div>
+            <label for="descricao" class="block text-sm font-medium text-gray-700">Descrição</label>
+            <input type="text" id="descricao" required
+              class="mt-1 block w-full rounded-lg border-2 border-gray-300 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-inset focus:ring-blue-500 px-3 py-2">
+          </div>
+          <!-- Valor -->
+          <div>
+            <label for="valor" class="block text-sm font-medium text-gray-700">Valor (R$)</label>
+            <input type="text" inputmode="numeric" id="valor" required placeholder="0,00"
+              class="mt-1 block w-full rounded-lg border-2 border-gray-300 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-inset focus:ring-blue-500 text-right px-3 py-2">
+          </div>
+          <!-- Categoria -->
+          <div>
+            <label for="categoria" class="block text-sm font-medium text-gray-700">Categoria</label>
+            <select id="categoria" required
+              class="mt-1 block w-full rounded-lg border-2 border-gray-300 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-inset focus:ring-blue-500 px-3 py-2">
+              <!-- Opções carregadas via JS -->
+            </select>
+          </div>
+          <!-- Tipo -->
+          <div>
+            <label for="tipo" class="block text-sm font-medium text-gray-700">Tipo</label>
+            <select id="tipo"
+              class="mt-1 block w-full rounded-lg border-2 border-gray-300 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-inset focus:ring-blue-500 px-3 py-2">
+              <option value="pagar">A Pagar</option>
+              <option value="receber">A Receber</option>
+            </select>
+          </div>
+          <!-- Data Venc. -->
+          <div>
+            <label for="data" class="block text-sm font-medium text-gray-700">Data Venc.</label>
+            <input type="date" id="data" required
+              class="mt-1 block w-full rounded-lg border-2 border-gray-300 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-inset focus:ring-blue-500 px-3 py-2">
+          </div>
+          <!-- Botão -->
+          <div class="md:col-span-5 flex justify-center sm:justify-end">
+            <button type="submit"
+              class="rounded-lg bg-blue-600 px-6 py-3 font-semibold text-white shadow-md transition-all duration-200 hover:bg-blue-700 hover:scale-105">
+              Adicionar Lançamento
+            </button>
+          </div>
+        </form>
+
+        <!-- Importação de Arquivo OFX -->
+        <div class="mt-6 border-t border-gray-100 pt-6">
+          <h3 class="text-lg font-semibold text-gray-800 mb-3">Importar extrato OFX</h3>
+          <p class="text-sm text-gray-500 mb-4">Selecione um arquivo .ofx do seu banco para importar lançamentos automaticamente.</p>
+          <div class="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+            <input id="ofx-file-input" type="file" accept=".ofx" class="hidden">
+            <button id="select-ofx-btn" class="rounded-lg bg-indigo-600 px-4 py-2 font-semibold text-white shadow-md transition-all duration-200 hover:bg-indigo-700 hover:scale-105">
+              Selecionar arquivo OFX
+            </button>
+            <span id="ofx-file-name" class="text-sm text-gray-600"></span>
+            <button id="import-ofx-btn" disabled class="rounded-lg bg-gray-400 px-4 py-2 font-semibold text-white shadow-md transition-all duration-200 cursor-not-allowed">
+              Importar
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Lista de Lançamentos -->
+      <section id="transaction-list" class="bg-white p-6 rounded-xl shadow-lg">
+        <h2 class="text-xl font-bold mb-4 text-gray-800">Lançamentos</h2>
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Descrição</th>
+                <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Valor</th>
+                <th class="hidden sm:table-cell px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Categoria</th>
+                <th class="hidden sm:table-cell px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tipo</th>
+                <th class="hidden sm:table-cell px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data Venc.</th>
+                <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="transactions-table-body" class="bg-white divide-y divide-gray-200">
+              <!-- Linhas da tabela serão inseridas aqui via JS -->
+              <tr>
+                <td colspan="7" class="px-6 py-4 text-center text-gray-500">Nenhum lançamento encontrado.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+  </section>
+
+  <!-- 4. Ecrã de Admin -->
+  <section id="admin-screen" class="hidden">
+    <!-- Cabeçalho do Admin -->
+    <header class="bg-gray-800 text-white shadow-lg">
+      <nav class="container mx-auto max-w-7xl px-4 py-4 flex flex-col sm:flex-row sm:justify-between items-center gap-4 sm:gap-0">
+        <div class="flex items-center gap-3">
+          <img src="logo.png" alt="Logo Blinq" class="h-10 w-10"
+               onerror="this.src='https://placehold.co/40x40/f0f9ff/3b82f6?text=B'">
+          <span class="text-2xl font-bold">Blinq - Painel Admin</span>
+        </div>
+        <div class="flex items-center gap-4">
+          <div class="text-right text-center sm:text-right">
+            <div id="admin-name" class="font-semibold"></div>
+            <div id="admin-email" class="text-sm text-gray-300"></div>
+          </div>
+          <img id="admin-photo" class="h-10 w-10 rounded-full" src="" alt="Foto de Perfil"
+               onerror="this.src='https://placehold.co/40x40/gray/white?text=A'">
+          <button id="logout-btn-admin"
+            class="rounded-lg bg-red-600 px-4 py-2 font-semibold text-white shadow-sm transition-all duration-200 hover:bg-red-700 hover:scale-105">
+            Sair
+          </button>
+        </div>
+      </nav>
+    </header>
+
+    <!-- Conteúdo do Admin -->
+    <main class="container mx-auto max-w-7xl p-6">
+      <h2 class="text-3xl font-bold mb-6 text-gray-900">Gestão de Utilizadores</h2>
+
+      <!-- Utilizadores Pendentes -->
+      <section id="pending-users" class="bg-white p-6 rounded-xl shadow-lg mb-8">
+        <h3 class="text-xl font-bold mb-4 text-gray-800">Utilizadores Pendentes</h3>
+        <div id="pending-users-list" class="overflow-x-auto">
+          <p class="text-gray-500">Nenhum utilizador pendente.</p>
+          <!-- Tabela de pendentes será inserida aqui -->
+        </div>
+      </section>
+
+      <!-- Todos os Utilizadores -->
+      <section id="all-users" class="bg-white p-6 rounded-xl shadow-lg">
+        <h3 class="text-xl font-bold mb-4 text-gray-800">Gestão de Todos os Utilizadores</h3>
+        <div id="all-users-list" class="overflow-x-auto">
+          <p class="text-gray-500">A carregar lista de utilizadores...</p>
+          <!-- Tabela de todos os utilizadores será inserida aqui -->
+        </div>
+      </section>
+
+    </main>
+  </section>
+
+  <!-- Scripts do Firebase e da Aplicação -->
+  <script type="module">
+    // Importações do Firebase
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import {
+      getAuth,
+      onAuthStateChanged,
+      GoogleAuthProvider,
+      signInWithPopup,
+      signOut,
+      signInAnonymously,
+      signInWithCustomToken
+    } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import {
+      getFirestore,
+      doc,
+      getDoc,
+      setDoc,
+      collection,
+      addDoc,
+      onSnapshot,
+      deleteDoc,
+      updateDoc,
+      query,
+      where,
+      writeBatch,
+      Timestamp,
+      serverTimestamp,
+      setLogLevel,
+      runTransaction // <-- IMPORTAR runTransaction
+    } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"; // <-- CORRIGIDO AQUI (removido https")
+
+    // --- CONFIGURAÇÃO DO FIREBASE ---
+    // Objeto de configuração do seu projeto Firebase (usado como fallback)
+    const userFallbackConfig = {
+      apiKey: "AIzaSyDeMH7ONn9Lrfuanli4-UEZFBIMGwpqgaU",
+      authDomain: "blinq-75546.firebaseapp.com",
+      projectId: "blinq-75546",
+      storageBucket: "blinq-75546.firebasestorage.app",
+      messagingSenderId: "307852677571",
+      appId: "1:307852677571:web:659e6003a82ebb14706d76",
+      measurementId: "G-6RT2WEDP5G"
+    };
+
+    // *** CORREÇÃO: Usar variáveis globais do ambiente ***
+    const firebaseConfig = typeof __firebase_config !== 'undefined'
+      ? JSON.parse(__firebase_config)
+      : userFallbackConfig;
+
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+    // *** NOVO: Detetar se está no ambiente da plataforma ou local ***
+    const isEnvironment = typeof __app_id !== 'undefined' && __app_id !== 'default-app-id';
+
+
+    // --- VARIÁVEIS GLOBAIS ---
+    let app, auth, db;
+    let currentUser = null; // Armazena o objeto User do Firebase Auth
+    let currentUserId = null; // Armazena o ID do utilizador logado
+    let currentUserProfile = null; // Armazena o documento de perfil do Firestore
+    let transacoesRef = null; // Referência para a coleção de transações
+    let unsubscribeTransactions = null; // Função para parar de ouvir as transações
+    let unsubscribePendingUsers = null; // Função para parar de ouvir utilizadores pendentes
+    let unsubscribeAllUsers = null; // Função para parar de ouvir todos os utilizadores
+    let chartInstance = null; // Instância do Chart.js
+    let allTransactions = []; // Cache de todas as transações para filtragem
+
+    // --- CONSTANTES ---
+    const CATEGORIAS = {
+      pagar: ["Alimentação", "Moradia", "Transporte", "Lazer", "Saúde", "Contas", "Outros"],
+      receber: ["Salário", "Freelance", "Investimentos", "Presente", "Outros"]
+    };
+
+    // --- ELEMENTOS DO DOM (DECLARADOS COMO LET) ---
+    // *** CORREÇÃO: Declarar como let, atribuir dentro do DOMContentLoaded ***
+    let loadingOverlay, loginScreen, pendingScreen, appScreen, adminScreen;
+    let loginBtn, logoutBtnPending, logoutBtnMain, logoutBtnAdmin;
+    let transactionForm, formDescricao, formValor, formCategoria, formTipo, formData;
+    let transactionsTableBody, totalReceberEl, totalPagarEl, saldoAtualEl;
+    let pendingUsersList, allUsersList;
+    let userNameEl, userEmailEl, userPhotoEl;
+    let adminNameEl, adminEmailEl, adminPhotoEl;
+    let loginErrorEl, toaster, domainDebugEl; // <-- Adicionado domainDebugEl
+    let modalBackdrop, modalTitle, modalText, modalCancel, modalOk;
+    let searchInput, filterStartDate, filterEndDate, clearFiltersBtn, categoryChartCanvas;
+    let couponInput, applyCouponBtn, couponMessage; // <-- NOVOS ELEMENTOS DO CUPOM
+    let ofxFileInput, selectOfxBtn, importOfxBtn, ofxFileName; // <-- ELEMENTOS DE OFX
+
+    // --- FUNÇÕES AUXILIARES ---
+
+    /**
+     * Mostra uma notificação "toast"
+     * @param {string} message - A mensagem a exibir
+     * @param {string} type - 'success' (verde) ou 'error' (vermelho)
+     */
+    function showToast(message, type = 'success') {
+      if (!toaster) { // Verificação de segurança
+        console.warn("Elemento toaster não encontrado.");
+        return;
+      }
+      const toast = document.createElement('div');
+      toast.className = `toast ${type === 'success' ? 'toast-success' : 'toast-error'}`;
+      toast.textContent = message;
+      toaster.appendChild(toast);
+
+      // Animação de entrada
+      setTimeout(() => {
+        toast.classList.add('show');
+      }, 100);
+
+      // Animação de saída
+      setTimeout(() => {
+        toast.classList.remove('show');
+        // Remove o elemento do DOM após a animação
+        setTimeout(() => {
+          if (toaster.contains(toast)) {
+            toaster.removeChild(toast);
+          }
+        }, 300);
+      }, 3000); // O toast desaparece após 3 segundos
+    }
+
+    /**
+     * Mostra ou esconde o spinner de loading (DESATIVADO)
+     * @param {boolean} show - True para mostrar, false para esconder
+     */
+    function setLoading(show) {
+      // SPINNER REMOVIDO A PEDIDO DO UTILIZADOR
+      return; 
+
+      /*
+      if (!loadingOverlay) { // Verificação de segurança
+        console.warn("Elemento loadingOverlay não encontrado.");
+        return;
+      }
+      if (show) {
+        loadingOverlay.classList.remove('hidden');
+      } else {
+        loadingOverlay.classList.add('hidden');
+      }
+      */
+    }
+
+    /**
+     * Mostra um modal de confirmação
+     * @param {string} title - O título do modal
+     * @param {string} text - O texto de descrição
+     * @param {string} okText - O texto do botão de confirmação (ex: Excluir)
+     * @returns {Promise<boolean>} - Resolve true se o utilizador confirmar, false se cancelar
+     */
+    function showConfirmModal(title, text, okText = "Confirmar") {
+      return new Promise((resolve) => {
+        modalTitle.textContent = title;
+        modalText.textContent = text;
+        modalOk.textContent = okText;
+
+        // Limpa listeners antigos
+        const newModalOk = modalOk.cloneNode(true);
+        modalOk.parentNode.replaceChild(newModalOk, modalOk);
+        modalOk = newModalOk;
+
+        const newModalCancel = modalCancel.cloneNode(true);
+        modalCancel.parentNode.replaceChild(newModalCancel, modalCancel);
+        modalCancel = newModalCancel;
+
+        // Mostra o modal
+        modalBackdrop.classList.add('visible');
+
+        // Define os eventos
+        modalOk.onclick = () => {
+          modalBackdrop.classList.remove('visible');
+          resolve(true);
+        };
+        modalCancel.onclick = () => {
+          modalBackdrop.classList.remove('visible');
+          resolve(false);
+        };
+      });
+    }
+
+    /**
+     * Formata um número para a moeda BRL (Real Brasileiro)
+     * @param {number} value - O valor numérico
+     * @returns {string} - O valor formatado (ex: R$ 1.234,56)
+     */
+    function formatCurrency(value) {
+      if (typeof value !== 'number') {
+        value = 0;
+      }
+      return value.toLocaleString('pt-BR', {
+        style: 'currency',
+        currency: 'BRL'
+      });
+    }
+
+    /**
+     * Formata um valor de input para BRL (sem R$)
+     * @param {string} value - O valor do input
+     * @returns {string} - O valor formatado (ex: 1.234,56)
+     */
+    function formatCurrencyInput(value) {
+      // 1. Get only digits
+      let digits = value.replace(/\D/g, '');
+      if (digits === '') digits = '0';
+
+      // 2. Format as BRL, but without the 'R$' symbol
+      let formatted = (parseInt(digits, 10) / 100).toLocaleString('pt-BR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      });
+
+      return formatted;
+    }
+
+    /**
+     * Formata uma data do Firebase (Timestamp ou string YYYY-MM-DD) para DD/MM/AAAA
+     * @param {object | string} dateInput - A data
+     * @returns {string} - A data formatada
+     */
+    function formatDate(dateInput) {
+      try {
+        if (!dateInput) return "N/A";
+        let date;
+        if (dateInput.toDate) {
+          // É um Timestamp do Firebase
+          date = dateInput.toDate();
+        } else {
+          // É uma string (ex: 2025-10-28)
+          const parts = dateInput.split('-');
+          date = new Date(parts[0], parts[1] - 1, parts[2]);
+        }
+        return date.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+      } catch (error) {
+        console.error("Erro ao formatar data:", dateInput, error);
+        return "Data Inválida";
+      }
+    }
+
+    /**
+     * Converte string de data OFX (YYYYMMDD[HHmmss]) em Date
+     * @param {string} ofxDate - Ex.: 20250103 ou 20250103T120000
+     * @returns {Date}
+     */
+    function parseOfxDate(ofxDate) {
+      if (!ofxDate) return new Date();
+      const digits = ofxDate.replace(/[^0-9]/g, '');
+      const y = parseInt(digits.slice(0, 4), 10);
+      const m = parseInt(digits.slice(4, 6), 10) - 1;
+      const d = parseInt(digits.slice(6, 8), 10);
+      const hh = parseInt(digits.slice(8, 10) || '12', 10);
+      const mm = parseInt(digits.slice(10, 12) || '00', 10);
+      const ss = parseInt(digits.slice(12, 14) || '00', 10);
+      return new Date(Date.UTC(y, m, d, hh, mm, ss));
+    }
+
+    /**
+     * Parser simples de OFX para extrair transações de <STMTTRN>
+     * Suporta campos: TRNTYPE, DTPOSTED, TRNAMT, MEMO/NAME
+     * @param {string} content
+     * @returns {Array<{descricao:string, valor:number, tipo:'pagar'|'receber', dataVencimento:Date}>}
+     */
+    function parseOfx(content) {
+      const entries = [];
+      const stmtRegex = /<STMTTRN>([\s\S]*?)<\/STMTTRN>/gi;
+      let match;
+      while ((match = stmtRegex.exec(content)) !== null) {
+        const block = match[1];
+        const getTag = (tag) => {
+          const r = new RegExp(`<${tag}>\\s*([^\r\n<]+)`, 'i');
+          const m = block.match(r);
+          return m ? m[1].trim() : '';
+        };
+        const trnType = (getTag('TRNTYPE') || '').toUpperCase();
+        const trnAmtStr = getTag('TRNAMT');
+        const trnAmt = parseFloat(trnAmtStr?.replace(',', '.') || '0');
+        const dtPosted = getTag('DTPOSTED');
+        const memo = getTag('MEMO') || getTag('NAME') || 'Sem descrição';
+
+        const isCredit = trnType.includes('CREDIT') || trnType.includes('DEP') || trnAmt > 0;
+        const tipo = isCredit ? 'receber' : 'pagar';
+        const valor = Math.abs(trnAmt);
+        const dataVencimento = parseOfxDate(dtPosted);
+
+        if (!valor || isNaN(valor)) continue;
+
+        entries.push({
+          descricao: memo,
+          valor,
+          tipo,
+          dataVencimento
+        });
+      }
+      return entries;
+    }
+
+    /**
+     * Importa transações OFX para o Firestore da conta atual
+     * Usa writeBatch para eficiência
+     * @param {Array} txs
+     */
+    async function saveOfxTransactions(txs) {
+      if (!transacoesRef) {
+        showToast('Erro: sessão não iniciada ou sem acesso às transações.', 'error');
+        return;
+      }
+      if (!txs.length) {
+        showToast('Nenhum lançamento válido encontrado no OFX.', 'error');
+        return;
+      }
+      const batch = writeBatch(db);
+      txs.forEach((t) => {
+        const [y, m, d] = [t.dataVencimento.getUTCFullYear(), t.dataVencimento.getUTCMonth(), t.dataVencimento.getUTCDate()];
+        const ts = Timestamp.fromDate(new Date(Date.UTC(y, m, d)));
+        const docRef = doc(transacoesRef);
+        batch.set(docRef, {
+          descricao: t.descricao,
+          valor: t.valor,
+          categoria: 'Outros',
+          tipo: t.tipo,
+          dataVencimento: ts,
+          status: 'pendente',
+          createdAt: serverTimestamp()
+        });
+      });
+      await batch.commit();
+    }
+
+    /**
+     * Fluxo do botão Importar OFX
+     */
+    async function handleImportOfxFile(file) {
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const txs = parseOfx(text);
+        if (!txs.length) {
+          showToast('Arquivo OFX sem lançamentos reconhecíveis.', 'error');
+          return;
+        }
+
+        const confirmed = await showConfirmModal(
+          'Importar OFX',
+          `Encontrados ${txs.length} lançamentos. Deseja importar?`,
+          'Importar'
+        );
+        if (!confirmed) return;
+
+        setLoading(true);
+        await saveOfxTransactions(txs);
+        showToast('OFX importado com sucesso!', 'success');
+        ofxFileInput.value = '';
+        ofxFileName.textContent = '';
+        importOfxBtn.disabled = true;
+        importOfxBtn.classList.remove('bg-indigo-600', 'hover:bg-indigo-700', 'hover:scale-105');
+        importOfxBtn.classList.add('bg-gray-400', 'cursor-not-allowed');
+      } catch (err) {
+        console.error('Falha ao importar OFX:', err);
+        showToast(`Erro ao importar OFX: ${err.message}`, 'error');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    /**
+     * Limpa todos os listeners do Firestore para evitar memory leaks
+     */
+    function cleanupListeners() {
+      if (unsubscribeTransactions) {
+        unsubscribeTransactions();
+        unsubscribeTransactions = null;
+      }
+      if (unsubscribePendingUsers) {
+        unsubscribePendingUsers();
+        unsubscribePendingUsers = null;
+      }
+      if (unsubscribeAllUsers) {
+        unsubscribeAllUsers();
+        unsubscribeAllUsers = null;
+      }
+    }
+
+    /**
+     * Limpa os dados da interface do utilizador
+     */
+    function clearUI() {
+      if (transactionsTableBody) {
+        transactionsTableBody.innerHTML = '<tr><td colspan="7" class="px-6 py-4 text-center text-gray-500">Nenhum lançamento encontrado.</td></tr>';
+      }
+      if (totalReceberEl) totalReceberEl.textContent = formatCurrency(0);
+      if (totalPagarEl) totalPagarEl.textContent = formatCurrency(0);
+      if (saldoAtualEl) saldoAtualEl.textContent = formatCurrency(0);
+      if (pendingUsersList) pendingUsersList.innerHTML = '<p class="text-gray-500">Nenhum utilizador pendente.</p>';
+      if (allUsersList) allUsersList.innerHTML = '<p class="text-gray-500">A carregar lista de utilizadores...</p>';
+      
+      // Limpar gráfico
+      if (chartInstance) {
+        chartInstance.destroy();
+        chartInstance = null;
+      }
+      if(categoryChartCanvas) {
+          const ctx = categoryChartCanvas.getContext('2d');
+          ctx.clearRect(0, 0, categoryChartCanvas.width, categoryChartCanvas.height);
+          ctx.textAlign = 'center';
+          ctx.fillStyle = '#6b7280';
+          ctx.font = '16px Inter';
+          ctx.fillText('A carregar dados...', categoryChartCanvas.width / 2, categoryChartCanvas.height / 2);
+      }
+    }
+
+    /**
+     * Navega entre os ecrãs da aplicação
+     * @param {string} screenName - 'login', 'pending', 'app', 'admin'
+     */
+    function navigateTo(screenName) {
+      // Esconde todos os ecrãs
+      if (loginScreen) loginScreen.classList.add('hidden');
+      if (pendingScreen) pendingScreen.classList.add('hidden');
+      if (appScreen) appScreen.classList.add('hidden');
+      if (adminScreen) adminScreen.classList.add('hidden');
+
+      // Mostra o ecrã desejado
+      switch (screenName) {
+        case 'login':
+          if (loginScreen) loginScreen.classList.remove('hidden');
+          // ATUALIZA A LINHA DE DEPURAÇÃO
+          if (domainDebugEl) {
+            domainDebugEl.textContent = `Domínio atual: ${window.location.hostname}`;
+          }
+          break;
+        case 'pending':
+          if (pendingScreen) pendingScreen.classList.remove('hidden');
+          break;
+        case 'app':
+          if (appScreen) appScreen.classList.remove('hidden');
+          break;
+        case 'admin':
+          if (adminScreen) adminScreen.classList.remove('hidden');
+          break;
+      }
+    }
+
+    // --- LÓGICA DO FIREBASE ---
+
+    /**
+     * Inicializa a aplicação
+     */
+    async function initialize() { // <-- Adicionado async
+      try {
+        // *** NOVO: Logar o domínio no console ***
+        console.log(`[BLINQ_DEBUG] Domínio para autorização do Firebase: ${window.location.hostname}`);
+        
+        // Validação da Configuração
+        if (!firebaseConfig.apiKey || firebaseConfig.apiKey.includes("AIzaSyDeMH7ONn9Lrfuanli4-UEZFBIMGwpqgaU")) {
+          console.warn("Atenção: A usar API key de fallback. Acesso pode ser limitado.");
+        }
+
+        app = initializeApp(firebaseConfig);
+        auth = getAuth(app);
+        db = getFirestore(app);
+        setLogLevel('Debug'); // <-- Adicionado para logs de depuração
+
+        // *** CORREÇÃO: Bloco de autenticação inicial (signInAnonymously/signInWithCustomToken) REMOVIDO ***
+        // Este bloco estava a causar o "Erro de autenticação" na tela de login e não é
+        // necessário para este fluxo (onde o utilizador faz login manually).
+
+        // Define os listeners dos botões de logout
+        logoutBtnPending.addEventListener('click', handleLogout);
+        logoutBtnMain.addEventListener('click', handleLogout);
+        logoutBtnAdmin.addEventListener('click', handleLogout);
+        
+        // Define o listener do botão de login
+        loginBtn.addEventListener('click', handleLogin);
+        applyCouponBtn.addEventListener('click', handleApplyCoupon); // <-- NOVO
+
+        // Ouve as mudanças no estado de autenticação
+        onAuthStateChanged(auth, async (user) => {
+          
+          try {
+            cleanupListeners(); // Limpa listeners antigos
+            clearUI(); // Limpa a UI
+            
+            // *** CORREÇÃO: Ignorar o login anónimo inicial ***
+            // Se o 'user' existir E não for anónimo, é um login real (Google).
+            if (user && !user.isAnonymous) { 
+              currentUser = user;
+              currentUserId = user.uid; // Armazena o ID
+              console.log("Utilizador autenticado:", user.uid);
+              await checkUserProfile(user); // Espera o perfil ser verificado
+            } else {
+              // Se o 'user' for nulo (primeiro carregamento) ou anónimo, vai para o login.
+              currentUser = null;
+              currentUserId = null; // Limpa o ID
+              currentUserProfile = null;
+              console.log("Nenhum utilizador logado (ou anónimo).");
+              navigateTo('login');
+            }
+          } catch (error) {
+            console.error("Erro fatal no onAuthStateChanged:", error);
+            showToast(`Erro crítico: ${error.message}`, "error");
+            navigateTo('login'); // Volta para o login
+          }
+        });
+
+        // Listener do formulário de transação
+        transactionForm.addEventListener('submit', handleAddTransaction);
+
+        // Listener global para ações na tabela
+        document.body.addEventListener('click', handleListActions);
+
+        // Listener do campo Valor para formatação
+        formValor.addEventListener('input', (e) => {
+          const target = e.target;
+          
+          // Formata
+          let formattedValue = formatCurrencyInput(target.value);
+          target.value = formattedValue;
+          
+          // Coloca o cursor no fim, que é o comportamento esperado ao digitar
+          target.setSelectionRange(formattedValue.length, formattedValue.length);
+        });
+        
+        // --- NOVOS LISTENERS ---
+        // Populador de Categoria (dependente do Tipo)
+        function populateCategories() {
+          const tipo = formTipo.value;
+          const cats = CATEGORIAS[tipo];
+          formCategoria.innerHTML = ''; // Limpa
+          cats.forEach(cat => {
+            const option = document.createElement('option');
+            option.value = cat;
+            option.textContent = cat;
+            formCategoria.appendChild(option);
+          });
+        }
+        formTipo.addEventListener('change', populateCategories);
+        populateCategories(); // Popula na inicialização
+
+        // Adicionar listeners para filtros
+        searchInput.addEventListener('input', applyFilters);
+        filterStartDate.addEventListener('input', applyFilters);
+        filterEndDate.addEventListener('input', applyFilters);
+        clearFiltersBtn.addEventListener('click', () => {
+          searchInput.value = '';
+          filterStartDate.value = '';
+          filterEndDate.value = '';
+          applyFilters();
+        });
+        // --- FIM NOVOS LISTENERS ---
+
+      // Importação OFX - UI
+      selectOfxBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        ofxFileInput.click();
+      });
+      ofxFileInput.addEventListener('change', () => {
+        const file = ofxFileInput.files && ofxFileInput.files[0];
+        ofxFileName.textContent = file ? file.name : '';
+        const enable = !!file;
+        importOfxBtn.disabled = !enable;
+        if (enable) {
+          importOfxBtn.classList.remove('bg-gray-400', 'cursor-not-allowed');
+          importOfxBtn.classList.add('bg-indigo-600', 'hover:bg-indigo-700', 'hover:scale-105');
+        } else {
+          importOfxBtn.classList.remove('bg-indigo-600', 'hover:bg-indigo-700', 'hover:scale-105');
+          importOfxBtn.classList.add('bg-gray-400', 'cursor-not-allowed');
+        }
+      });
+      importOfxBtn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        const file = ofxFileInput.files && ofxFileInput.files[0];
+        await handleImportOfxFile(file);
+      });
+
+
+      } catch (error) {
+        console.error("Erro fatal na inicialização:", error);
+        navigateTo('login');
+        loginErrorEl.textContent = `Erro fatal: ${error.message}`;
+        loginErrorEl.classList.remove('hidden');
+      }
+    }
+
+    /**
+     * Lida com o clique no botão de login
+     */
+    async function handleLogin() {
+      setLoading(true); // Deixei este, pois é após uma ação do utilizador
+      loginErrorEl.classList.add('hidden'); // Esconde erros antigos
+      const provider = new GoogleAuthProvider();
+
+      try {
+        await signInWithPopup(auth, provider);
+        // O onAuthStateChanged tratará do resto
+        showToast("Login bem-sucedido!", "success");
+      } catch (error)
+ {
+        console.error("Erro ao logar com Google:", error);
+        showToast(`Erro ao logar: ${error.message}`, "error");
+        
+        if (error.code === 'auth/unauthorized-domain') {
+          loginErrorEl.textContent = "Erro: Este domínio não está autorizado para login. Contacte o administrador.";
+        } else {
+          loginErrorEl.textContent = "Erro ao tentar fazer login. Tente novamente.";
+        }
+        loginErrorEl.classList.remove('hidden');
+        setLoading(false); // Esconde o loading se o login falhar
+      }
+    }
+
+    /**
+     * Lida com o clique nos botões de Sair
+     */
+    async function handleLogout() {
+      setLoading(true); // Deixei este
+      try {
+        await signOut(auth);
+        // O onAuthStateChanged tratará da navegação para 'login'
+        showToast("Logout realizado com sucesso!", "success");
+      } catch (error) {
+        console.error("Erro ao fazer logout:", error);
+        showToast(`Erro ao sair: ${error.message}`, "error");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    /**
+     * Lida com a tentativa de aplicar um cupom de acesso
+     */
+    async function handleApplyCoupon() {
+      if (!currentUserId) {
+        showToast("Erro: Você precisa estar logado para aplicar um cupom.", "error");
+        return;
+      }
+
+      const couponCode = couponInput.value.trim();
+      couponMessage.textContent = ''; // Limpa mensagens antigas
+
+      if (couponCode !== 'Blinq2025') {
+        couponMessage.textContent = 'Cupom inválido.';
+        couponMessage.classList.remove('text-green-600');
+        couponMessage.classList.add('text-red-500');
+        return;
+      }
+
+      setLoading(true);
+
+      try {
+        // Definir os caminhos corretos (local vs. ambiente)
+        const userRef = isEnvironment
+          ? doc(db, "artifacts", appId, "public", "data", "user_profiles", currentUserId)
+          : doc(db, "user_profiles", currentUserId);
+
+        const couponStatsRef = isEnvironment
+          ? doc(db, "artifacts", appId, "public", "data", "metadata", "coupon_stats")
+          : doc(db, "metadata", "coupon_stats");
+
+        // Executar a transação
+        await runTransaction(db, async (transaction) => {
+          // 1. Obter o documento de estatísticas do cupom
+          const couponDoc = await transaction.get(couponStatsRef);
+          let currentUses = 0;
+
+          if (couponDoc.exists()) {
+            currentUses = couponDoc.data().uses || 0;
+          } else {
+            // Se o documento não existir, esta é a primeira utilização.
+            console.log("Documento de cupom não encontrado, será criado.");
+          }
+
+          // 2. Verificar o limite
+          if (currentUses >= 5) {
+            // Lança um erro para abortar a transação
+            throw new Error("Limite do cupom atingido!");
+          }
+
+          // 3. Se o limite não foi atingido, atualizar os dois documentos
+          
+          // Incrementa o contador de usos
+          if (couponDoc.exists()) {
+            transaction.update(couponStatsRef, { uses: currentUses + 1 });
+          } else {
+            // Cria o documento se for a primeira vez
+            transaction.set(couponStatsRef, { uses: 1 });
+          }
+          
+          // Atualiza o status do utilizador para 'approved'
+          transaction.update(userRef, { status: "approved" });
+        });
+
+        // Se a transação for bem-sucedida:
+        showToast("Cupom aplicado! Você foi aprovado.", "success");
+        couponMessage.textContent = 'Aprovado! A redirecionar...';
+        couponMessage.classList.remove('text-red-500');
+        couponMessage.classList.add('text-green-600');
+        
+        // Força a verificação do perfil para navegar o utilizador
+        if(currentUser) {
+            await checkUserProfile(currentUser); 
+        }
+
+      } catch (error) {
+        console.error("Erro na transação do cupom:", error);
+        if (error.message === "Limite do cupom atingido!") {
+          couponMessage.textContent = 'Este cupom já atingiu o limite de 5 utilizações.';
+          couponMessage.classList.remove('text-green-600');
+          couponMessage.classList.add('text-red-500');
+        } else {
+          couponMessage.textContent = 'Erro ao aplicar o cupom. Tente novamente.';
+          couponMessage.classList.remove('text-green-600');
+          couponMessage.classList.add('text-red-500');
+          showToast(`Erro: ${error.message}`, "error");
+        }
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    /**
+     * Verifica o perfil do utilizador no Firestore após o login
+     * @param {object} user - O objeto User do Firebase Auth
+     */
+    async function checkUserProfile(user) {
+      try {
+        // *** CORREÇÃO: Usar o caminho certo (local vs. ambiente) ***
+        const userRef = isEnvironment
+          ? doc(db, "artifacts", appId, "public", "data", "user_profiles", user.uid) // Caminho do Ambiente
+          : doc(db, "user_profiles", user.uid); // Caminho Local/Original
+
+        const userDoc = await getDoc(userRef);
+
+        if (userDoc.exists()) {
+          // --- Utilizador Existente ---
+          currentUserProfile = userDoc.data();
+          console.log("Perfil do utilizador:", currentUserProfile);
+
+          // Atualiza os dados de perfil (foto, email) se estiverem desatualizados
+          if (currentUserProfile.email !== user.email || currentUserProfile.displayName !== user.displayName) {
+            await updateDoc(userRef, {
+              email: user.email,
+              displayName: user.displayName,
+              photoURL: user.photoURL
+            });
+          }
+
+          // Roteamento baseado no perfil
+          if (currentUserProfile.role === 'admin') {
+            navigateTo('admin');
+            setupAdminUI(user);
+            listenForPendingUsers();
+            listenForAllUsers();
+          } else if (currentUserProfile.status === 'approved') {
+            navigateTo('app');
+            setupAppUI(user);
+            listenForTransactions();
+          } else {
+            // Status 'pending' ou indefinido
+            navigateTo('pending');
+          }
+
+        } else {
+          // --- Novo Utilizador ---
+          console.log("Novo utilizador. A criar perfil pendente...");
+          const newUserProfile = {
+            displayName: user.displayName,
+            email: user.email,
+            photoURL: user.photoURL,
+            status: "pending",
+            role: "user",
+            createdAt: serverTimestamp()
+          };
+          await setDoc(userRef, newUserProfile);
+          currentUserProfile = newUserProfile;
+          navigateTo('pending');
+          showToast("Conta criada. Aguardando aprovação.", "success");
+        }
+      } catch (error) {
+        console.error("Erro ao verificar perfil:", error);
+        showToast(`Erro de perfil: ${error.message}`, "error");
+        await handleLogout(); // Desloga em caso de erro grave de perfil
+      } finally {
+        setLoading(false); // *** PONTO CRÍTICO: Esconde o loading ***
+      }
+    }
+
+    // --- LÓGICA DA APLICAÇÃO (Utilizador Aprovado) ---
+
+    /**
+     * Configura a UI da aplicação principal
+     * @param {object} user - O objeto User do Firebase Auth
+     */
+    function setupAppUI(user) {
+      userNameEl.textContent = `Olá, ${user.displayName}!`;
+      userEmailEl.textContent = user.email;
+      userPhotoEl.src = user.photoURL || 'https://placehold.co/40x40/gray/white?text=A';
+    }
+    
+    /**
+     * Aplica os filtros e atualiza a UI
+     */
+    function applyFilters() {
+      const searchTerm = searchInput.value.toLowerCase();
+      const startDate = filterStartDate.value ? new Date(filterStartDate.value + 'T00:00:00') : null;
+      const endDate = filterEndDate.value ? new Date(filterEndDate.value + 'T23:59:59') : null;
+
+      const filteredTransactions = allTransactions.filter(tx => {
+        // 1. Filtro de Pesquisa
+        const descMatch = tx.descricao.toLowerCase().includes(searchTerm);
+
+        // 2. Filtro de Data
+        // Assegura que txDate é um objeto Date
+        let txDate;
+        if(tx.dataVencimento.toDate) {
+            txDate = tx.dataVencimento.toDate();
+        } else {
+            // Fallback para string YYYY-MM-DD (do form antigo, se houver)
+            const parts = tx.dataVencimento.split('-');
+            txDate = new Date(parts[0], parts[1] - 1, parts[2]);
+        }
+        
+        const startDateMatch = !startDate || txDate >= startDate;
+        const endDateMatch = !endDate || txDate <= endDate;
+
+        return descMatch && startDateMatch && endDateMatch;
+      });
+
+      // Atualiza toda a UI com os dados filtrados
+      renderTransactions(filteredTransactions);
+      updateSummary(filteredTransactions);
+      updateChart(filteredTransactions);
+    }
+
+    /**
+     * Ouve as transações do utilizador em tempo real
+     */
+    function listenForTransactions() {
+      if (!currentUser) return;
+
+      // *** CORREÇÃO: Usar o caminho certo (local vs. ambiente) ***
+      const userId = currentUser.uid;
+      transacoesRef = isEnvironment
+        ? collection(db, "artifacts", appId, "users", userId, "transacoes") // Caminho do Ambiente
+        : collection(db, `users/${userId}/transacoes`); // Caminho Local/Original (CORRIGIDO)
+
+      const q = query(transacoesRef);
+
+      try {
+        unsubscribeTransactions = onSnapshot(q, (snapshot) => {
+          if (snapshot.empty) {
+            allTransactions = []; // Armazena dados vazios
+            applyFilters(); // Aplica filtros (que mostrará "nenhum encontrado")
+            return;
+          }
+
+          allTransactions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          applyFilters(); // Aplica filtros aos novos dados
+
+        }, (error) => {
+          console.error("Erro ao escutar dados:", error);
+          showToast(`Erro ao carregar dados: ${error.message}`, "error");
+          if (error.code === "permission-denied" || error.code === "unavailable") {
+             // Esta é a mensagem de erro da sua captura de ecrã!
+             transactionsTableBody.innerHTML = `<tr><td colspan="7" class="px-6 py-4 text-center text-red-500">Erro: ${error.message}. Verifique as regras de segurança.</td></tr>`;
+          }
+        });
+      } catch (error) {
+        console.error("Erro ao iniciar listener:", error);
+        showToast(`Erro crítico: ${error.message}`, "error");
+      }
+    }
+
+    /**
+     * Renderiza a lista de transações na tabela
+     * @param {Array} transacoes - A lista de transações (JÁ FILTRADAS)
+     */
+    function renderTransactions(transacoes) {
+      // Ordena por data (mais recente primeiro) - JÁ FILTRADO
+      transacoes.sort((a, b) => {
+        const dateA = a.dataVencimento.toDate ? a.dataVencimento.toDate() : new Date(a.dataVencimento);
+        const dateB = b.dataVencimento.toDate ? b.dataVencimento.toDate() : new Date(b.dataVencimento);
+        return dateB - dateA;
+      });
+
+      // Mensagem de "Nenhum lançamento"
+      if (transacoes.length === 0) {
+         transactionsTableBody.innerHTML = `<tr><td colspan="7" class="px-6 py-4 text-center text-gray-500">Nenhum lançamento encontrado para os filtros atuais.</td></tr>`;
+         return;
+      }
+
+      transactionsTableBody.innerHTML = ''; // Limpa a tabela
+      
+      transacoes.forEach(tx => {
+        const row = document.createElement('tr');
+        const valorClasse = tx.tipo === 'receber' ? 'text-green-600' : 'text-red-600';
+        const statusClasse = tx.status === 'pago' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800';
+        const statusTexto = tx.status === 'pago' ? 'Pago/Recebido' : 'Pendente';
+        const acaoBotaoTexto = tx.status === 'pago' ? (tx.tipo === 'receber' ? 'Estornar' : 'Cancelar Pgto') : (tx.tipo === 'receber' ? 'Receber' : 'Pagar');
+        const acaoBotaoClasse = tx.status === 'pago' ? 'bg-gray-400 hover:bg-gray-500' : (tx.tipo === 'receber' ? 'bg-green-500 hover:bg-green-600' : 'bg-blue-500 hover:bg-blue-600');
+        const categoriaTexto = tx.categoria || 'N/D'; // Categoria
+
+        row.innerHTML = `
+          <td class="px-3 py-3 sm:px-6 sm:py-4 whitespace-normal break-words text-sm text-gray-900">${tx.descricao}</td>
+          <td class="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-sm ${valorClasse}">${formatCurrency(tx.valor)}</td>
+          <td class="hidden sm:table-cell px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-gray-500">${categoriaTexto}</td>
+          <td class="hidden sm:table-cell px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-gray-500">${tx.tipo === 'receber' ? 'A Receber' : 'A Pagar'}</td>
+          <td class="hidden sm:table-cell px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-gray-500">${formatDate(tx.dataVencimento)}</td>
+          <td class="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap">
+            <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${statusClasse}">
+              ${statusTexto}
+            </span>
+          </td>
+          <td class="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-sm font-medium">
+            <button data-action="toggle-status" data-id="${tx.id}" data-status="${tx.status}" class="w-full sm:w-auto px-3 py-1 rounded-md text-white ${acaoBotaoClasse} transition-all duration-200 hover:scale-105">
+              ${acaoBotaoTexto}
+            </button>
+            <button data-action="delete" data-id="${tx.id}" class="w-full sm:w-auto mt-2 sm:mt-0 sm:ml-2 px-3 py-1 rounded-md text-white bg-red-500 hover:bg-red-600 transition-all duration-200 hover:scale-105">
+              Excluir
+            </button>
+          </td>
+        `;
+        transactionsTableBody.appendChild(row);
+      });
+    }
+
+    /**
+     * Atualiza os cartões de resumo (Totais e Saldo)
+     * @param {Array} transacoes - A lista de transações (JÁ FILTRADAS)
+     */
+    function updateSummary(transacoes) {
+      let totalReceber = 0;
+      let totalPagar = 0;
+      let saldo = 0;
+
+      // O resumo deve ser baseado nas transações filtradas
+      transacoes.forEach(tx => {
+        if (tx.tipo === 'receber') {
+          if (tx.status === 'pendente') {
+            totalReceber += tx.valor;
+          } else {
+            saldo += tx.valor; // Pago/Recebido
+          }
+        } else { // tipo === 'pagar'
+          if (tx.status === 'pendente') {
+            totalPagar += tx.valor;
+          } else {
+            saldo -= tx.valor; // Pago/Recebido
+          }
+        }
+      });
+
+      totalReceberEl.textContent = formatCurrency(totalReceber);
+      totalPagarEl.textContent = formatCurrency(totalPagar);
+      saldoAtualEl.textContent = formatCurrency(saldo);
+      // Atualiza a cor do saldo
+      if (saldo < 0) {
+        saldoAtualEl.classList.remove('text-blue-600', 'text-green-600');
+        saldoAtualEl.classList.add('text-red-600');
+      } else if (saldo > 0) {
+        saldoAtualEl.classList.remove('text-blue-600', 'text-red-600');
+        saldoAtualEl.classList.add('text-green-600');
+      } else {
+        saldoAtualEl.classList.remove('text-green-600', 'text-red-600');
+        saldoAtualEl.classList.add('text-blue-600');
+      }
+    }
+
+    /**
+     * Atualiza o gráfico de categorias
+     * @param {Array} transacoes - A lista de transações (JÁ FILTRADAS)
+     */
+    function updateChart(transacoes) {
+      if (!categoryChartCanvas) return;
+
+      // 1. Processar dados: Agrupar gastos pagos por categoria
+      const gastosPorCategoria = transacoes
+        .filter(tx => tx.tipo === 'pagar' && tx.status === 'pago')
+        .reduce((acc, tx) => {
+          const cat = tx.categoria || 'N/D';
+          acc[cat] = (acc[cat] || 0) + tx.valor;
+          return acc;
+        }, {});
+
+      const labels = Object.keys(gastosPorCategoria);
+      const data = Object.values(gastosPorCategoria);
+
+      // 2. Destruir gráfico antigo se existir
+      if (chartInstance) {
+        chartInstance.destroy();
+      }
+
+      // 3. Criar novo gráfico
+      if (labels.length > 0) {
+        const ctx = categoryChartCanvas.getContext('2d');
+        chartInstance = new Chart(ctx, {
+          type: 'doughnut', // Gráfico de "donut"
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'Gastos por Categoria',
+              data: data,
+              backgroundColor: [ // Cores
+                '#3b82f6', '#ef4444', '#f97316', '#eab308',
+                '#22c55e', '#14b8a6', '#6366f1', '#a855f7',
+                '#ec4899', '#84cc16'
+              ],
+              hoverOffset: 4
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                position: 'right', // Posição da legenda
+              }
+            }
+          }
+        });
+      } else {
+        // Mostrar mensagem se não houver dados
+        const ctx = categoryChartCanvas.getContext('2d');
+        ctx.clearRect(0, 0, categoryChartCanvas.width, categoryChartCanvas.height);
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#6b7280';
+        ctx.font = '16px Inter';
+        ctx.fillText('Nenhum gasto (pago) para exibir.', categoryChartCanvas.width / 2, categoryChartCanvas.height / 2);
+      }
+    }
+
+
+    /**
+     * Lida com a submissão do formulário de nova transação
+     * @param {Event} e - O evento de submissão
+     */
+    async function handleAddTransaction(e) {
+      e.preventDefault();
+      setLoading(true); // Deixei este
+
+      if (!transacoesRef) {
+        console.error("Referência de transações não está definida.");
+        showToast("Erro: A coleção de transações não foi inicializada.", "error");
+        setLoading(false);
+        return;
+      }
+      
+      const [year, month, day] = formData.value.split('-');
+      const dataFormatada = new Date(year, month - 1, day);
+
+      const novaTransacao = {
+        descricao: formDescricao.value,
+        valor: parseFloat(formValor.value.replace(/\./g, '').replace(',', '.')), // Converte "1.500,00" para 1500.00
+        categoria: formCategoria.value,
+        tipo: formTipo.value,
+        dataVencimento: Timestamp.fromDate(dataFormatada),
+        status: "pendente", // Sempre começa como pendente
+        createdAt: serverTimestamp()
+      };
+
+      try {
+        await addDoc(transacoesRef, novaTransacao);
+        showToast("Lançamento adicionado com sucesso!", "success");
+        transactionForm.reset(); // Limpa o formulário
+        formValor.value = "0,00"; // Reseta o valor formatado
+        
+        // Tenta redefinir a data para hoje
+        try {
+          formData.valueAsDate = new Date();
+        } catch (e) { /* falha silenciosamente se não for suportado */ }
+        
+        // Repopula as categorias (pois o form.reset() pode mudar o 'tipo')
+        // (O evento 'change' do formTipo não dispara no reset, então forçamos)
+        const ev = new Event('change');
+        formTipo.dispatchEvent(ev);
+
+
+      } catch (error) {
+        console.error("Erro ao adicionar documento:", error);
+        showToast(`Erro ao salvar: ${error.message}`, "error");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    /**
+     * Lida com cliques nos botões da lista (Mudar Status, Excluir)
+     * @param {Event} e - O evento de clique
+     */
+    async function handleListActions(e) {
+      const target = e.target.closest('button');
+      if (!target) return;
+
+      const action = target.dataset.action;
+      const id = target.dataset.id;
+
+      if (!action || !id) return;
+
+      // Ações do utilizador (Dashboard)
+      if (transacoesRef && (action === 'toggle-status' || action === 'delete')) {
+        const docRef = doc(transacoesRef, id); // Isto agora usa o transacoesRef correto
+        
+        if (action === 'toggle-status') {
+          const currentStatus = target.dataset.status;
+          const newStatus = currentStatus === 'pendente' ? 'pago' : 'pendente';
+          setLoading(true); // Deixei este
+          try {
+            await updateDoc(docRef, { status: newStatus });
+            showToast("Status atualizado!", "success");
+          } catch (error) {
+            console.error("Erro ao atualizar status:", error);
+            showToast(`Erro: ${error.message}`, "error");
+          } finally {
+            setLoading(false);
+          }
+        }
+
+        if (action === 'delete') {
+          // *** CORREÇÃO: Usar o modal de confirmação ***
+          const confirmed = await showConfirmModal(
+            "Excluir Lançamento",
+            "Tem certeza que deseja excluir este lançamento? Esta ação não pode ser desfeita.",
+            "Excluir"
+          );
+
+          if (confirmed) {
+            setLoading(true); // Deixei este
+            try {
+              await deleteDoc(docRef);
+              showToast("Lançamento excluído!", "success");
+            } catch (error) {
+              console.error("Erro ao excluir:", error);
+              showToast(`Erro: ${error.message}`, "error");
+            } finally {
+              setLoading(false);
+            }
+          }
+        }
+      }
+
+      // Ações do Admin (Painel de Admin)
+      // *** CORREÇÃO: Usar o caminho certo (local vs. ambiente) ***
+      const profilesRef = isEnvironment
+        ? collection(db, "artifacts", appId, "public", "data", "user_profiles") // Caminho do Ambiente
+        : collection(db, "user_profiles"); // Caminho Local/Original
+      
+      const userRef = doc(profilesRef, id); // profilesRef já é a coleção completa
+
+      try {
+        if (action === 'approve-user') {
+          setLoading(true); // Deixei este
+          await updateDoc(userRef, { status: "approved" });
+          showToast("Utilizador aprovado!", "success");
+        }
+        if (action === 'reject-user') {
+          // No futuro, pode-se excluir o utilizador. Por agora, apenas atualizamos.
+          setLoading(true); // Deixei este
+          await updateDoc(userRef, { status: "rejected" }); // Rejeitado
+          showToast("Utilizador rejeitado!", "success");
+        }
+        if (action === 'admin-toggle-status') {
+          const newStatus = target.dataset.status === 'approved' ? 'pending' : 'approved';
+          setLoading(true); // Deixei este
+          await updateDoc(userRef, { status: newStatus });
+          showToast("Status do utilizador atualizado!", "success");
+        }
+        if (action === 'admin-toggle-role') {
+          const newRole = target.dataset.role === 'admin' ? 'user' : 'admin';
+          setLoading(true); // Deixei este
+          await updateDoc(userRef, { role: newRole });
+          showToast("Função do utilizador atualizada!", "success");
+        }
+      } catch (error) {
+        console.error("Erro na ação de admin:", error);
+        showToast(`Erro de admin: ${error.message}`, "error");
+      } finally {
+        if (action.startsWith('admin-') || action.endsWith('-user')) {
+          setLoading(false);
+        }
+      }
+    }
+
+
+    // --- LÓGICA DO ADMIN ---
+
+    /**
+     * Configura a UI do painel de admin
+     * @param {object} user - O objeto User do Firebase Auth
+     */
+    function setupAdminUI(user) {
+      adminNameEl.textContent = `Admin: ${user.displayName}`;
+      adminEmailEl.textContent = user.email;
+      adminPhotoEl.src = user.photoURL || 'https://placehold.co/40x40/gray/white?text=A';
+    }
+
+    /**
+     * Ouve os utilizadores pendentes
+     */
+    function listenForPendingUsers() {
+      // *** CORREÇÃO: Usar o caminho certo (local vs. ambiente) ***
+      const collectionRef = isEnvironment
+        ? collection(db, "artifacts", appId, "public", "data", "user_profiles") // Caminho do Ambiente
+        : collection(db, "user_profiles"); // Caminho Local/Original
+
+      const q = query(collectionRef, where("status", "==", "pending"));
+
+      unsubscribePendingUsers = onSnapshot(q, (snapshot) => {
+        if (snapshot.empty) {
+          pendingUsersList.innerHTML = '<p class="text-gray-500">Nenhum utilizador pendente.</p>';
+          return;
+        }
+
+        const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        renderUsersTable(pendingUsersList, users, 'pending');
+      }, (error) => {
+        console.error("Erro ao carregar utilizadores pendentes:", error);
+        pendingUsersList.innerHTML = `<p class="text-red-500">Erro: ${error.message}</p>`;
+      });
+    }
+
+    /**
+     * Ouve todos os utilizadores (para gestão)
+     */
+    function listenForAllUsers() {
+      // *** CORREÇÃO: Usar o caminho certo (local vs. ambiente) ***
+      const collectionRef = isEnvironment
+        ? collection(db, "artifacts", appId, "public", "data", "user_profiles") // Caminho do Ambiente
+        : collection(db, "user_profiles"); // Caminho Local/Original
+        
+      const q = query(collectionRef);
+
+      unsubscribeAllUsers = onSnapshot(q, (snapshot) => {
+        if (snapshot.empty) {
+          allUsersList.innerHTML = '<p class="text-gray-500">Nenhum utilizador registado.</p>';
+          return;
+        }
+
+        const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        renderUsersTable(allUsersList, users, 'all');
+      }, (error) => {
+        console.error("Erro ao carregar todos os utilizadores:", error);
+        allUsersList.innerHTML = `<p class="text-red-500">Erro: ${error.message}</p>`;
+      });
+    }
+
+    /**
+     * Renderiza uma tabela de utilizadores (Pendente ou Todos)
+     * @param {HTMLElement} element - O elemento onde a tabela será renderizada
+     * @param {Array} users - A lista de utilizadores
+     * @param {string} type - 'pending' ou 'all' (para definir as colunas)
+     */
+    function renderUsersTable(element, users, type) {
+      
+      // Ordena por data de criação
+      users.sort((a, b) => {
+        const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(0);
+        const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(0);
+        return dateA - dateB; // Mais antigo primeiro
+      });
+      
+      let tableHTML = `
+        <table class="min-w-full divide-y divide-gray-200">
+          <thead class="bg-gray-50">
+            <tr>
+              <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Utilizador</th>
+              <th class="hidden sm:table-cell px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+              <th class="hidden sm:table-cell px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Registado em</th>
+              ${type === 'all' ? `
+                <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Função</th>
+              ` : ''}
+              <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
+            </tr>
+          </thead>
+          <tbody class="bg-white divide-y divide-gray-200">
+      `;
+
+      users.forEach(user => {
+        // Proteção para não se poder modificar a si mesmo na lista
+        const isSelf = currentUser && user.id === currentUser.uid;
+        const disabledActions = isSelf ? 'disabled opacity-50 cursor-not-allowed' : '';
+        const selfTooltip = isSelf ? 'title="Não pode modificar a sua própria conta"' : '';
+
+        // Detalhes do Utilizador
+        const userImg = user.photoURL || 'https://placehold.co/40x40/gray/white?text=A';
+        const userDisplayName = user.displayName || 'Nome não disponível';
+        const userEmail = user.email || 'Email não disponível';
+        const createdAt = user.createdAt ? formatDate(user.createdAt) : 'N/A';
+        
+        // Status (para lista 'all')
+        const statusClasse = user.status === 'approved' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800';
+        const statusTexto = user.status === 'approved' ? 'Aprovado' : 'Pendente';
+
+        // Função (para lista 'all')
+        const roleClasse = user.role === 'admin' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800';
+        const roleTexto = user.role === 'admin' ? 'Admin' : 'User';
+
+        tableHTML += `
+          <tr>
+            <td class="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap">
+              <div class="flex items-center">
+                <div class="flex-shrink-0 h-10 w-10">
+                  <img class="h-10 w-10 rounded-full" src="${userImg}" alt="Foto de Perfil"
+                       onerror="this.src='https://placehold.co/40x40/gray/white?text=A'">
+                </div>
+                <div class="ml-2 sm:ml-4">
+                  <div class="text-sm font-medium text-gray-900 whitespace-normal break-words">${userDisplayName}</div>
+                </div>
+              </div>
+            </td>
+            <td class="hidden sm:table-cell px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-gray-500">${userEmail}</td>
+            <td class="hidden sm:table-cell px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-gray-500">${createdAt}</td>
+            
+            ${type === 'all' ? `
+              <td class="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap">
+                <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${statusClasse}">
+                  ${statusTexto}
+                </span>
+              </td>
+              <td class="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap">
+                <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${roleClasse}">
+                  ${roleTexto}
+                </span>
+              </td>
+            ` : ''}
+
+            <td class="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-sm font-medium" ${selfTooltip}>
+              ${type === 'pending' ? `
+                <button data-action="approve-user" data-id="${user.id}" class="w-full sm:w-auto px-3 py-1 rounded-md text-white bg-green-500 hover:bg-green-600 transition-all duration-200 hover:scale-105 ${disabledActions}">
+                  Aprovar
+                </button>
+                <button data-action="reject-user" data-id="${user.id}" class="w-full sm:w-auto mt-2 sm:mt-0 sm:ml-2 px-3 py-1 rounded-md text-white bg-red-500 hover:bg-red-600 transition-all duration-200 hover:scale-105 ${disabledActions}">
+                  Rejeitar
+                </button>
+              ` : ''}
+              
+              ${type === 'all' ? `
+                <button data-action="admin-toggle-status" data-id="${user.id}" data-status="${user.status}" class="w-full sm:w-auto px-3 py-1 rounded-md text-white ${user.status === 'approved' ? 'bg-yellow-500 hover:bg-yellow-600' : 'bg-green-500 hover:bg-green-600'} transition-all duration-200 hover:scale-105 ${disabledActions}">
+                  ${user.status === 'approved' ? 'Revogar Acesso' : 'Reaprovar'}
+                </button>
+                <button data-action="admin-toggle-role" data-id="${user.id}" data-role="${user.role}" class="w-full sm:w-auto mt-2 sm:mt-0 sm:ml-2 px-3 py-1 rounded-md text-white ${user.role === 'admin' ? 'bg-gray-500 hover:bg-gray-600' : 'bg-blue-500 hover:bg-blue-600'} transition-all duration-200 hover:scale-105 ${disabledActions}">
+                  ${user.role === 'admin' ? 'Tornar User' : 'Tornar Admin'}
+                </button>
+              ` : ''}
+            </td>
+          </tr>
+        `;
+      });
+
+      tableHTML += `</tbody></table>`;
+      element.innerHTML = tableHTML;
+    }
+
+    // --- INICIALIZAÇÃO ---
+    // Define a data de hoje nos formulários
+    document.addEventListener('DOMContentLoaded', () => {
+      // Atribui todas as variáveis de elementos DOM
+      loadingOverlay = document.getElementById('loading-overlay');
+      loginScreen = document.getElementById('login-screen');
+      pendingScreen = document.getElementById('pending-screen');
+      appScreen = document.getElementById('app-screen');
+      adminScreen = document.getElementById('admin-screen');
+
+      loginBtn = document.getElementById('login-btn');
+      logoutBtnPending = document.getElementById('logout-btn-pending');
+      logoutBtnMain = document.getElementById('logout-btn-main');
+      logoutBtnAdmin = document.getElementById('logout-btn-admin');
+
+      transactionForm = document.getElementById('transaction-form');
+      formDescricao = document.getElementById('descricao');
+      formValor = document.getElementById('valor');
+      formCategoria = document.getElementById('categoria'); // Novo
+      formTipo = document.getElementById('tipo');
+      formData = document.getElementById('data');
+
+      transactionsTableBody = document.getElementById('transactions-table-body');
+      totalReceberEl = document.getElementById('total-receber');
+      totalPagarEl = document.getElementById('total-pagar');
+      saldoAtualEl = document.getElementById('saldo-atual');
+
+      pendingUsersList = document.getElementById('pending-users-list');
+      allUsersList = document.getElementById('all-users-list');
+
+      userNameEl = document.getElementById('user-name');
+      userEmailEl = document.getElementById('user-email');
+      userPhotoEl = document.getElementById('user-photo');
+      adminNameEl = document.getElementById('admin-name');
+      adminEmailEl = document.getElementById('admin-email');
+      adminPhotoEl = document.getElementById('admin-photo');
+      
+      loginErrorEl = document.getElementById('login-error');
+      domainDebugEl = document.getElementById('domain-debug'); // <-- Adicionado
+      toaster = document.getElementById('toaster');
+
+      // Modal
+      modalBackdrop = document.getElementById('confirm-modal-backdrop');
+      modalTitle = document.getElementById('confirm-modal-title');
+      modalText = document.getElementById('confirm-modal-text');
+      modalCancel = document.getElementById('confirm-modal-cancel');
+      modalOk = document.getElementById('confirm-modal-ok');
+
+      // Filtros e Gráfico
+      searchInput = document.getElementById('search-input');
+      filterStartDate = document.getElementById('filter-start-date');
+      filterEndDate = document.getElementById('filter-end-date');
+      clearFiltersBtn = document.getElementById('clear-filters-btn');
+      categoryChartCanvas = document.getElementById('category-chart');
+      
+      // Cupom
+      couponInput = document.getElementById('coupon-input');
+      applyCouponBtn = document.getElementById('apply-coupon-btn');
+      couponMessage = document.getElementById('coupon-message');
+
+      // OFX Elements
+      ofxFileInput = document.getElementById('ofx-file-input');
+      selectOfxBtn = document.getElementById('select-ofx-btn');
+      importOfxBtn = document.getElementById('import-ofx-btn');
+      ofxFileName = document.getElementById('ofx-file-name');
+
+
+      // Define a data de hoje no formulário de transação
+      try {
+        formData.valueAsDate = new Date();
+      } catch (e) {
+        console.warn("Não foi possível definir a data padrão.");
+      }
+      
+      // Inicia a aplicação
+      initialize();
+    });
+
+  </script>
+
+</body>
+
+</html>

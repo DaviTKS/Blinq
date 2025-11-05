@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Blinq - Controle Financeiro</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts (Inter) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="logo.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<body class="bg-gray-100 min-h-screen">
+
+  <!-- Indicador de Loading (Spinner) -->
+  <!-- 
+  <div id="loading-overlay" class="hidden">
+    <div class="spinner"></div>
+  </div>
+  -->
+
+  <!-- Notificações "Toast" -->
+  <div id="toaster"></div>
+
+
+  <!-- Modal de Confirmação -->
+  <div id="confirm-modal-backdrop">
+    <div id="confirm-modal">
+      <h3 id="confirm-modal-title" class="text-xl font-bold text-gray-900">Confirmar Ação</h3>
+      <p id="confirm-modal-text" class="mt-2 text-gray-600">Tem certeza?</p>
+      <div class="mt-6 flex justify-end gap-3">
+        <button id="confirm-modal-cancel"
+          class="rounded-lg bg-gray-200 px-4 py-2 font-semibold text-gray-800 transition-all duration-200 hover:bg-gray-300">
+          Cancelar
+        </button>
+        <button id="confirm-modal-ok"
+          class="rounded-lg bg-red-600 px-4 py-2 font-semibold text-white shadow-md transition-all duration-200 hover:bg-red-700">
+          Confirmar
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de Edição de Lançamento -->
+  <div id="edit-modal-backdrop" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+    <div id="edit-modal" class="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl">
+      <h3 id="edit-modal-title" class="text-xl font-bold text-gray-900">Editar Lançamento</h3>
+      <form id="edit-form" class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="md:col-span-2">
+          <label for="edit-descricao" class="block text-sm font-medium text-gray-700">Descrição</label>
+          <input type="text" id="edit-descricao" required
+                 class="mt-1 block w-full rounded-lg border-2 border-gray-300 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-inset focus:ring-blue-500 px-3 py-2">
+        </div>
+        <div>
+          <label for="edit-valor" class="block text-sm font-medium text-gray-700">Valor (R$)</label>
+          <input type="text" id="edit-valor" inputmode="numeric" required placeholder="0,00"
+                 class="mt-1 block w-full rounded-lg border-2 border-gray-300 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-inset focus:ring-blue-500 text-right px-3 py-2">
+        </div>
+        <div>
+          <label for="edit-categoria" class="block text-sm font-medium text-gray-700">Categoria</label>
+          <select id="edit-categoria" required
+                  class="mt-1 block w-full rounded-lg border-2 border-gray-300 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-inset focus:ring-blue-500 px-3 py-2"></select>
+        </div>
+        <div>
+          <label for="edit-tipo" class="block text-sm font-medium text-gray-700">Tipo</label>
+          <select id="edit-tipo"
+                  class="mt-1 block w-full rounded-lg border-2 border-gray-300 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-inset focus:ring-blue-500 px-3 py-2">
+            <option value="pagar">A Pagar</option>
+            <option value="receber">A Receber</option>
+          </select>
+        </div>
+        <div>
+          <label for="edit-data" class="block text-sm font-medium text-gray-700">Data Venc.</label>
+          <input type="date" id="edit-data" required
+                 class="mt-1 block w-full rounded-lg border-2 border-gray-300 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-inset focus:ring-blue-500 px-3 py-2">
+        </div>
+      </form>
+      <div class="mt-6 flex justify-end gap-3">
+        <button id="edit-cancel" class="rounded-lg bg-gray-200 px-4 py-2 font-semibold text-gray-800 transition-all duration-200 hover:bg-gray-300">Cancelar</button>
+        <button id="edit-save" class="rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white shadow-md transition-all duration-200 hover:bg-blue-700">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 1. Ecrã de Login -->
+  <section id="login-screen" class="flex min-h-screen items-center justify-center">
+    <div class="w-full max-w-md p-8 bg-white shadow-xl rounded-xl">
+      <img src="logo.png" alt="Logo Blinq" class="w-24 h-24 mx-auto mb-6"
+           onerror="this.src='https://placehold.co/96x96/f0f9ff/3b82f6?text=Blinq'">
+      <h2 class="text-3xl font-bold text-center text-gray-900">Bem-vindo ao Blinq</h2>
+      <p class="mt-2 text-center text-gray-600">O seu assistente financeiro.</p>
+      <div class="mt-8">
+        <button id="login-btn"
+          class="flex w-full items-center justify-center gap-3 rounded-lg border border-gray-300 bg-white px-4 py-3 font-semibold text-gray-700 shadow-sm transition-all duration-200 hover:bg-gray-50 hover:shadow-md">
+          <!-- Logo SVG do Google -->
+          <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+            <path fill="#EA4335"
+              d="M24 9.5c3.54 0 6.71 1.22 9.21 3.61L39.01 7.29C35.08 3.63 30.04 1.5 24 1.5C14.62 1.5 6.51 7.15 3.1 15.53l8.03 6.22C12.72 15.82 17.9 9.5 24 9.5z">
+            </path>
+            <path fill="#4285F4"
+              d="M46.98 24.55c0-1.57-.15-3.09-.42-4.55H24v8.51h12.94c-.57 2.92-2.21 5.47-4.64 7.19l7.14 5.51C44.62 37.33 46.98 31.45 46.98 24.55z">
+            </path>
+            <path fill="#FBBC05"
+              d="M11.13 27.96C10.61 26.4 10.32 24.77 10.32 23.08c0-1.69.29-3.32.81-4.88l-8.03-6.22C1.15 15.19 0 18.98 0 23.08c0 4.09 1.15 7.89 3.1 11.02l8.03-6.14z">
+            </path>
+            <path fill="#34A853"
+              d="M24 46.5c6.5 0 11.97-2.16 15.95-5.87l-7.14-5.51c-2.16 1.46-5.01 2.3-8.81 2.3-6.1 0-11.28-4.08-13.11-9.57l-8.03 6.22C6.51 41.35 14.62 46.5 24 46.5z">
+            </path>
+            <path fill="none" d="M0 0h48v48H0z"></path>
+          </svg>
+          Entrar com a conta Google
+        </button>
+      </div>
+      <p id="login-error" class="mt-4 text-center text-red-500 text-sm hidden"></p>
+    </div>
+  </section>
+
+  <!-- 2. Ecrã de Aguardando Aprovação -->
+  <section id="pending-screen" class="hidden flex min-h-screen items-center justify-center">
+    <div class="w-full max-w-md p-8 text-center bg-white shadow-xl rounded-xl">
+      <img src="logo.png" alt="Logo Blinq" class="w-24 h-24 mx-auto mb-6"
+           onerror="this.src='https://placehold.co/96x96/f0f9ff/3b82f6?text=Blinq'">
+      <h2 class="text-2xl font-bold text-gray-900">Conta Pendente</h2>
+      <p class="mt-2 text-gray-600">Logo logo seu acesso será liberado, estamos ansiosos para ter você conosco!</p>
+
+      <!-- NOVO: Formulário do Cupom -->
+      <div class="mt-8 border-t border-gray-200 pt-6">
+        <label for="coupon-input" class="block text-sm font-medium text-gray-700">Tem um cupom de acesso?</label>
+        <div class="mt-2 flex gap-2">
+          <input type="text" id="coupon-input" placeholder="Seu Cupom Aqui"
+            class="block w-full rounded-lg border-2 border-gray-300 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-inset focus:ring-blue-500 px-3 py-2">
+          <button id="apply-coupon-btn"
+            class="rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white shadow-md transition-all duration-200 hover:bg-blue-700 hover:scale-105 whitespace-nowrap">
+            Aplicar
+          </button>
+        </div>
+        <p id="coupon-message" class="mt-2 text-center text-sm"></p> <!-- Mensagem de erro/sucesso -->
+      </div>
+      <!-- Fim do Formulário do Cupom -->
+
+      <button id="logout-btn-pending"
+        class="mt-8 w-full rounded-lg bg-red-600 px-4 py-3 font-semibold text-white shadow-md transition-all duration-200 hover:bg-red-700 hover:scale-105">
+        Sair
+      </button>
+    </div>
+  </section>
+
+  <!-- 3. Ecrã Principal da Aplicação (Dashboard) -->
+  <section id="app-screen" class="hidden">
+    <!-- Cabeçalho -->
+    <header class="bg-white shadow-md">
+      <nav class="container mx-auto max-w-7xl px-4 py-4 flex flex-col sm:flex-row sm:justify-between items-center gap-4 sm:gap-0">
+        <!-- Lado Esquerdo: Logo e Título -->
+        <div class="flex items-center gap-3">
+          <img src="logo.png" alt="Logo Blinq" class="h-10 w-10"
+               onerror="this.src='https://placehold.co/40x40/f0f9ff/3b82f6?text=B'">
+          <span class="text-2xl font-bold text-gray-800">Blinq</span>
+        </div>
+        <!-- Lado Direito: Perfil e Sair -->
+        <div class="flex items-center gap-4">
+          <div class="text-right text-center sm:text-right">
+            <div id="user-name" class="font-semibold text-gray-700"></div>
+            <div id="user-email" class="text-sm text-gray-500"></div>
+          </div>
+          <img id="user-photo" class="h-10 w-10 rounded-full" src="" alt="Foto de Perfil"
+               onerror="this.src='https://placehold.co/40x40/gray/white?text=A'">
+          <button id="logout-btn-main"
+            class="rounded-lg bg-red-600 px-4 py-2 font-semibold text-white shadow-sm transition-all duration-200 hover:bg-red-700 hover:scale-105">
+            Sair
+          </button>
+        </div>
+      </nav>
+    </header>
+
+    <!-- Conteúdo Principal -->
+    <main class="container mx-auto max-w-7xl p-6">
+      <!-- Resumo Financeiro -->
+      <section id="summary" class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <!-- Total a Receber -->
+        <div class="bg-white p-6 rounded-xl shadow-lg">
+          <h3 class="text-sm font-medium text-gray-500">Total a Receber (Pendente)</h3>
+          <p id="total-receber" class="text-3xl font-bold text-green-600">R$ 0,00</p>
+        </div>
+        <!-- Total a Pagar -->
+        <div class="bg-white p-6 rounded-xl shadow-lg">
+          <h3 class="text-sm font-medium text-gray-500">Total a Pagar (Pendente)</h3>
+          <p id="total-pagar" class="text-3xl font-bold text-red-600">R$ 0,00</p>
+        </div>
+        <!-- Saldo Atual -->
+        <div class="bg-white p-6 rounded-xl shadow-lg">
+          <h3 class="text-sm font-medium text-gray-500">Saldo Atual (Baseado no pago)</h3>
+          <p id="saldo-atual" class="text-3xl font-bold text-blue-600">R$ 0,00</p>
+        </div>
+      </section>
+
+      <!-- Filtros e Gráficos -->
+      <section id="filters-and-charts" class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+        <!-- Filtros -->
+        <div class="bg-white p-6 rounded-xl shadow-lg">
+          <h3 class="text-xl font-bold mb-4 text-gray-800">Filtros</h3>
+          <div class="space-y-4">
+            <div>
+              <label for="search-input" class="block text-sm font-medium text-gray-700">Pesquisar Descrição</label>
+              <input type="text" id="search-input"
+                class="mt-1 block w-full rounded-lg border-2 border-gray-300 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-inset focus:ring-blue-500 px-3 py-2">
+            </div>
+            <div>
+              <label for="filter-start-date" class="block text-sm font-medium text-gray-700">Data Início</label>
+              <input type="date" id="filter-start-date"
+                class="mt-1 block w-full rounded-lg border-2 border-gray-300 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-inset focus:ring-blue-500 px-3 py-2">
+            </div>
+            <div>
+              <label for="filter-end-date" class="block text-sm font-medium text-gray-700">Data Fim</label>
+              <input type="date" id="filter-end-date"
+                class="mt-1 block w-full rounded-lg border-2 border-gray-300 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-inset focus:ring-blue-500 px-3 py-2">
+            </div>
+            <button id="clear-filters-btn"
+              class="w-full rounded-lg bg-gray-500 px-4 py-2 font-semibold text-white shadow-sm transition-all duration-200 hover:bg-gray-600">
+              Limpar Filtros
+            </button>
+          </div>
+        </div>
+        <!-- Gráfico -->
+        <div class="bg-white p-6 rounded-xl shadow-lg lg:col-span-2">
+          <h3 class="text-xl font-bold mb-4 text-gray-800">Gastos por Categoria (Pago)</h3>
+          <div class="relative" style="height: 300px;">
+            <canvas id="category-chart"></canvas>
+          </div>
+        </div>
+      </section>
+
+      <!-- Adicionar Novo Lançamento -->
+      <section id="add-transaction" class="bg-white p-6 rounded-xl shadow-lg mb-8">
+        <h2 class="text-xl font-bold mb-4 text-gray-800">Adicionar Novo Lançamento</h2>
+        <form id="transaction-form" class="grid grid-cols-1 md:grid-cols-5 gap-4">
+          <!-- Descrição -->
+          <div>
+            <label for="descricao" class="block text-sm font-medium text-gray-700">Descrição</label>
+            <input type="text" id="descricao" required
+              class="mt-1 block w-full rounded-lg border-2 border-gray-300 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-inset focus:ring-blue-500 px-3 py-2">
+          </div>
+          <!-- Valor -->
+          <div>
+            <label for="valor" class="block text-sm font-medium text-gray-700">Valor (R$)</label>
+            <input type="text" inputmode="numeric" id="valor" required placeholder="0,00"
+              class="mt-1 block w-full rounded-lg border-2 border-gray-300 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-inset focus:ring-blue-500 text-right px-3 py-2">
+          </div>
+          <!-- Categoria -->
+          <div>
+            <label for="categoria" class="block text-sm font-medium text-gray-700">Categoria</label>
+            <select id="categoria" required
+              class="mt-1 block w-full rounded-lg border-2 border-gray-300 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-inset focus:ring-blue-500 px-3 py-2">
+              <!-- Opções carregadas via JS -->
+            </select>
+          </div>
+          <!-- Tipo -->
+          <div>
+            <label for="tipo" class="block text-sm font-medium text-gray-700">Tipo</label>
+            <select id="tipo"
+              class="mt-1 block w-full rounded-lg border-2 border-gray-300 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-inset focus:ring-blue-500 px-3 py-2">
+              <option value="pagar">A Pagar</option>
+              <option value="receber">A Receber</option>
+            </select>
+          </div>
+          <!-- Data Venc. -->
+          <div>
+            <label for="data" class="block text-sm font-medium text-gray-700">Data Venc.</label>
+            <input type="date" id="data" required
+              class="mt-1 block w-full rounded-lg border-2 border-gray-300 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-inset focus:ring-blue-500 px-3 py-2">
+          </div>
+          <!-- Botão -->
+          <div class="md:col-span-5 flex justify-center sm:justify-end">
+            <button type="submit"
+              class="rounded-lg bg-blue-600 px-6 py-3 font-semibold text-white shadow-md transition-all duration-200 hover:bg-blue-700 hover:scale-105">
+              Adicionar Lançamento
+            </button>
+          </div>
+        </form>
+
+        <!-- Importação de Arquivo OFX -->
+        <div class="mt-6 border-t border-gray-100 pt-6">
+          <h3 class="text-lg font-semibold text-gray-800 mb-3">Importar extrato</h3>
+          <p class="text-sm text-gray-500 mb-4">Selecione um arquivo .ofx ou .csv do seu banco para importar lançamentos automaticamente.</p>
+          <div class="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+            <input id="ofx-file-input" type="file" accept=".ofx,.csv" class="hidden">
+            <button id="select-ofx-btn" class="rounded-lg bg-indigo-600 px-4 py-2 font-semibold text-white shadow-md transition-all duration-200 hover:bg-indigo-700 hover:scale-105">
+              Selecionar arquivo
+            </button>
+            <span id="ofx-file-name" class="text-sm text-gray-600"></span>
+            <button id="import-ofx-btn" disabled class="rounded-lg bg-gray-400 px-4 py-2 font-semibold text-white shadow-md transition-all duration-200 cursor-not-allowed">
+              Importar
+            </button>
+            <button id="clear-ofx-btn" disabled class="rounded-lg bg-gray-200 px-4 py-2 font-semibold text-gray-800 shadow-md transition-all duration-200 cursor-not-allowed hover:bg-gray-300">
+              Limpar
+            </button>
+          </div>
+          <!-- Pré-visualização dos lançamentos OFX -->
+          <div id="ofx-preview" class="mt-4 hidden">
+            <div class="flex items-center justify-between">
+              <h4 class="text-md font-semibold text-gray-800">Lançamentos detectados</h4>
+              <span id="ofx-preview-count" class="text-sm text-gray-500"></span>
+            </div>
+            <div class="mt-2 overflow-x-auto border border-gray-200 rounded-lg">
+              <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                  <tr>
+                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Descrição</th>
+                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Valor</th>
+                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tipo</th>
+                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data</th>
+                  </tr>
+                </thead>
+                <tbody id="ofx-preview-body" class="bg-white divide-y divide-gray-200"></tbody>
+              </table>
+            </div>
+            <p id="ofx-preview-note" class="text-xs text-gray-500 mt-2"></p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Lista de Lançamentos -->
+      <section id="transaction-list" class="bg-white p-6 rounded-xl shadow-lg">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-xl font-bold text-gray-800">Lançamentos</h2>
+        <div class="flex items-center gap-2">
+            <button id="edit-mode-btn" class="rounded-lg bg-gray-500 px-4 py-2 font-semibold text-white shadow-md transition-all duration-200 hover:scale-105">
+              Editar
+            </button>
+            <button id="quitar-tudo-btn" class="rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white shadow-md transition-all duration-200 hover:bg-emerald-700 hover:scale-105">
+              Quitar Tudo
+            </button>
+            <button id="excluir-tudo-btn" class="rounded-lg bg-red-600 px-4 py-2 font-semibold text-white shadow-md transition-all duration-200 hover:bg-red-700 hover:scale-105">
+              Excluir Tudo
+            </button>
+          </div>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Descrição</th>
+                <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Valor</th>
+                <th class="hidden sm:table-cell px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Categoria</th>
+                <th class="hidden sm:table-cell px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tipo</th>
+                <th class="hidden sm:table-cell px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data Venc.</th>
+                <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="transactions-table-body" class="bg-white divide-y divide-gray-200">
+              <!-- Linhas da tabela serão inseridas aqui via JS -->
+              <tr>
+                <td colspan="7" class="px-6 py-4 text-center text-gray-500">Nenhum lançamento encontrado.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+  </section>
+
+  <!-- 4. Ecrã de Admin -->
+  <section id="admin-screen" class="hidden">
+    <!-- Cabeçalho do Admin -->
+    <header class="bg-gray-800 text-white shadow-lg">
+      <nav class="container mx-auto max-w-7xl px-4 py-4 flex flex-col sm:flex-row sm:justify-between items-center gap-4 sm:gap-0">
+        <div class="flex items-center gap-3">
+          <img src="logo.png" alt="Logo Blinq" class="h-10 w-10"
+               onerror="this.src='https://placehold.co/40x40/f0f9ff/3b82f6?text=B'">
+          <span class="text-2xl font-bold">Blinq - Painel Admin</span>
+        </div>
+        <div class="flex items-center gap-4">
+          <div class="text-right text-center sm:text-right">
+            <div id="admin-name" class="font-semibold"></div>
+            <div id="admin-email" class="text-sm text-gray-300"></div>
+          </div>
+          <img id="admin-photo" class="h-10 w-10 rounded-full" src="" alt="Foto de Perfil"
+               onerror="this.src='https://placehold.co/40x40/gray/white?text=A'">
+          <button id="logout-btn-admin"
+            class="rounded-lg bg-red-600 px-4 py-2 font-semibold text-white shadow-sm transition-all duration-200 hover:bg-red-700 hover:scale-105">
+            Sair
+          </button>
+        </div>
+      </nav>
+    </header>
+
+    <!-- Conteúdo do Admin -->
+    <main class="container mx-auto max-w-7xl p-6">
+      <h2 class="text-3xl font-bold mb-6 text-gray-900">Gestão de Utilizadores</h2>
+
+      <!-- Utilizadores Pendentes -->
+      <section id="pending-users" class="bg-white p-6 rounded-xl shadow-lg mb-8">
+        <h3 class="text-xl font-bold mb-4 text-gray-800">Utilizadores Pendentes</h3>
+        <div id="pending-users-list" class="overflow-x-auto">
+          <p class="text-gray-500">Nenhum utilizador pendente.</p>
+          <!-- Tabela de pendentes será inserida aqui -->
+        </div>
+      </section>
+
+      <!-- Todos os Utilizadores -->
+      <section id="all-users" class="bg-white p-6 rounded-xl shadow-lg">
+        <h3 class="text-xl font-bold mb-4 text-gray-800">Gestão de Todos os Utilizadores</h3>
+        <div id="all-users-list" class="overflow-x-auto">
+          <p class="text-gray-500">A carregar lista de utilizadores...</p>
+          <!-- Tabela de todos os utilizadores será inserida aqui -->
+        </div>
+      </section>
+
+    </main>
+  </section>
+
+  <!-- Scripts do Firebase e da Aplicação -->
+  <script type="module" src="./js/main.js"></script>
+
+</body>
+
+</html>
