@@ -1,6 +1,7 @@
 /* Estilo base com a fonte Inter */
 body {
   font-family: 'Inter', sans-serif;
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 /* Estilo para o Toaster */
@@ -139,3 +140,25 @@ body {
   }
 }
 
+/* Realce de modo edição para cards no mobile */
+#transactions-cards.edit-mode .tx-card {
+  animation: blink-red 1.2s ease-in-out infinite;
+}
+#transactions-cards.edit-mode .tx-card:hover {
+  animation: none;
+  background-color: #eef2ff; /* Indigo-50 */
+}
+
+/* Hover escurecido para abas Pendentes/Concluídos */
+.tab-status-btn {
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+/* Hover claro com vinheta escura apenas para abas inativas */
+.tab-status-btn:not(.tab-active):hover {
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
+  background-color: #f9fafb; /* gray-50 quase branco */
+  color: inherit;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tab-status-btn { transition: none; }
+}

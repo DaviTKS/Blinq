@@ -8,12 +8,13 @@ export const CATEGORY_RULES = {
     "Lazer": ["netflix", "spotify", "prime video", "disney+", "cinema", "ingresso"],
     "Contas": ["fatura", "energia", "luz", "enel", "cpfl", "água", "agua", "sabesp", "internet", "vivo", "claro", "tim", "oi", "iptu", "ipva"],
     "Beleza": ["barbearia", "salão", "unhas", "cabeleireiro"],
+    "Investimentos": ["rdb", "invest", "dividend"],
     "Compras Online": ["shp", "ml", "meli", "mercado livre", "ali", "shein"]
   },
   receber: {
     "Salário": ["salário", "salario", "pagamento", "holerite"],
     "Freelance": ["freela", "freelance", "serviço", "servico", "pix cliente", "pagamento cliente"],
-    "Investimentos": ["rend", "dividend", "juros"],
+    "Investimentos": ["rdb", "rend", "dividend", "juros"],
     "Presente": ["presente", "doação", "doacao"]
   }
 };

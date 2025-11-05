@@ -22,11 +22,12 @@ let unsubscribeTransactions = null;
 let unsubscribePendingUsers = null;
 let unsubscribeAllUsers = null;
 let chartInstance = null;
+let monthlyChartInstance = null;
 let allTransactions = [];
 let latestFilteredTransactions = [];
 
 const CATEGORIAS = {
-  pagar: ["Alimentação", "Moradia", "Transporte", "Lazer", "Saúde", "Beleza","Contas", "Compras Online", "Outros"],
+  pagar: ["Alimentação", "Moradia", "Transporte", "Lazer", "Saúde", "Beleza","Contas", "Compras Online","Investimentos", "Outros"],
   receber: ["Salário", "Freelance", "Investimentos", "Presente", "Outros"]
 };
 
@@ -34,7 +35,7 @@ const CATEGORIAS = {
 let loadingOverlay, loginScreen, pendingScreen, appScreen, adminScreen;
 let loginBtn, logoutBtnPending, logoutBtnMain, logoutBtnAdmin;
 let transactionForm, formDescricao, formValor, formCategoria, formTipo, formData;
-let transactionsTableBody, totalReceberEl, totalPagarEl, saldoAtualEl;
+let transactionsTableBody, transactionsCards, totalReceberEl, totalPagarEl, saldoAtualEl;
 let pendingUsersList, allUsersList;
 let userNameEl, userEmailEl, userPhotoEl;
 let adminNameEl, adminEmailEl, adminPhotoEl;
@@ -44,12 +45,25 @@ let editModalBackdrop, editDescricao, editValor, editCategoria, editTipo, editDa
 let currentEditId = null;
 let editMode = false;
 let editModeBtn;
-let searchInput, filterStartDate, filterEndDate, clearFiltersBtn, categoryChartCanvas;
+let editModeBanner, editModeClose;
+let searchInput, filterStartDate, filterEndDate, clearFiltersBtn, categoryChartCanvas, monthlyChartCanvas;
+let applyFiltersBtn, toggleFiltersBtn, filtersPanel;
+let tabPendentesBtn, tabConcluidosBtn, tabPendentesCountEl, tabConcluidosCountEl, currentStatusFilter = 'pendentes';
 let couponInput, applyCouponBtn, couponMessage;
 let ofxFileInput, selectOfxBtn, importOfxBtn, ofxFileName;
 let clearOfxBtn;
 let ofxPreviewEl, ofxPreviewBody, ofxPreviewCount, ofxPreviewNote;
 let ofxParsedEntries = [];
+
+function updateAdminToggleVisibility() {
+  try {
+    const btn = document.getElementById('go-to-admin-btn');
+    if (!btn) return;
+    const isAdmin = !!(currentUserProfile && currentUserProfile.role === 'admin');
+    if (isAdmin) { btn.classList.remove('hidden'); }
+    else { btn.classList.add('hidden'); }
+  } catch {}
+}
 
 // --- UI HELPERS ---
 function showToast(message, type = 'success') {
@@ -57,27 +71,30 @@ function showToast(message, type = 'success') {
   const toast = document.createElement('div');
   toast.className = `toast ${type === 'success' ? 'toast-success' : 'toast-error'}`;
   toast.textContent = message;
-  // Para sucessos: manter visível até o utilizador fechar
+  const isEditHint = (message || '').toLowerCase().includes('modo edição');
+  // Sucessos: não remover o toast fixo do modo de edição
   if (type === 'success') {
-    // Remove sucesso anterior para evitar acumular infinitamente
     const prev = toaster.querySelectorAll('.toast-success');
-    prev.forEach(p => toaster.contains(p) && toaster.removeChild(p));
+    prev.forEach(p => {
+      const txt = (p.textContent || '').toLowerCase();
+      if (!txt.includes('modo edição')) {
+        toaster.contains(p) && toaster.removeChild(p);
+      }
+    });
   }
   toaster.appendChild(toast);
   setTimeout(() => toast.classList.add('show'), 100);
-  if (type === 'success') {
-    toast.style.cursor = 'pointer';
-    toast.title = 'Clique para fechar';
-    const remove = () => {
-      toast.classList.remove('show');
-      setTimeout(() => toaster.contains(toast) && toaster.removeChild(toast), 300);
-    };
-    toast.addEventListener('click', remove);
-  } else {
-    setTimeout(() => {
-      toast.classList.remove('show');
-      setTimeout(() => toaster.contains(toast) && toaster.removeChild(toast), 300);
-    }, 3000);
+  const remove = () => {
+    toast.classList.remove('show');
+    setTimeout(() => toaster.contains(toast) && toaster.removeChild(toast), 300);
+  };
+  // Clique para fechar em qualquer tipo
+  toast.style.cursor = 'pointer';
+  toast.title = 'Clique para fechar';
+  toast.addEventListener('click', remove);
+  // Auto-fechar após 3s para todos, exceto o aviso de modo de edição
+  if (!isEditHint) {
+    setTimeout(remove, 3000);
   }
 }
 
@@ -223,12 +240,17 @@ function clearUI() {
   if (transactionsTableBody) {
     transactionsTableBody.innerHTML = '<tr><td colspan="7" class="px-6 py-4 text-center text-gray-500">Nenhum lançamento encontrado.</td></tr>';
   }
+  if (transactionsCards) {
+    transactionsCards.innerHTML = '';
+  }
+  try { const gt = document.getElementById('global-totals'); if (gt) gt.innerHTML = ''; } catch {}
   if (totalReceberEl) totalReceberEl.textContent = formatCurrency(0);
   if (totalPagarEl) totalPagarEl.textContent = formatCurrency(0);
   if (saldoAtualEl) saldoAtualEl.textContent = formatCurrency(0);
   if (pendingUsersList) pendingUsersList.innerHTML = '<p class="text-gray-500">Nenhum utilizador pendente.</p>';
   if (allUsersList) allUsersList.innerHTML = '<p class="text-gray-500">A carregar lista de utilizadores...</p>';
   if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+  if (monthlyChartInstance) { monthlyChartInstance.destroy(); monthlyChartInstance = null; }
   if (categoryChartCanvas) {
     const ctx = categoryChartCanvas.getContext('2d');
     ctx.clearRect(0, 0, categoryChartCanvas.width, categoryChartCanvas.height);
@@ -236,6 +258,14 @@ function clearUI() {
     ctx.fillStyle = '#6b7280';
     ctx.font = '16px Inter';
     ctx.fillText('A carregar dados...', categoryChartCanvas.width / 2, categoryChartCanvas.height / 2);
+  }
+  if (monthlyChartCanvas) {
+    const ctx2 = monthlyChartCanvas.getContext('2d');
+    ctx2.clearRect(0, 0, monthlyChartCanvas.width, monthlyChartCanvas.height);
+    ctx2.textAlign = 'center';
+    ctx2.fillStyle = '#6b7280';
+    ctx2.font = '16px Inter';
+    ctx2.fillText('A carregar dados...', monthlyChartCanvas.width / 2, monthlyChartCanvas.height / 2);
   }
 }
 
@@ -259,6 +289,29 @@ async function initialize() {
     logoutBtnAdmin.addEventListener('click', handleLogout);
     loginBtn.addEventListener('click', handleLogin);
     applyCouponBtn.addEventListener('click', handleApplyCoupon);
+    const goToAppBtn = document.getElementById('go-to-app-btn');
+    if (goToAppBtn) {
+      goToAppBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        try {
+          cleanupListeners();
+          navigateTo('app');
+          if (currentUser) { setupAppUI(currentUser); listenForTransactions(); }
+          updateAdminToggleVisibility();
+        } catch (err) { showToast(`Erro ao abrir app: ${err.message}`, 'error'); }
+      });
+    }
+    const goToAdminBtn = document.getElementById('go-to-admin-btn');
+    if (goToAdminBtn) {
+      goToAdminBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        try {
+          cleanupListeners();
+          navigateTo('admin');
+          if (currentUser) { setupAdminUI(currentUser); listenForPendingUsers(); listenForAllUsers(); }
+        } catch (err) { showToast(`Erro ao abrir admin: ${err.message}`, 'error'); }
+      });
+    }
 
     onAuthStateChanged(auth, async (user) => {
       try {
@@ -294,10 +347,70 @@ async function initialize() {
     formTipo.addEventListener('change', populateCategories);
     populateCategories();
 
+    // Filtro padrão: mês atual (apenas se nenhum valor estiver definido)
+    try {
+      if (filterStartDate && filterEndDate && !filterStartDate.value && !filterEndDate.value) {
+        const now = new Date();
+        const start = new Date(now.getFullYear(), now.getMonth(), 1);
+        const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        const toYmd = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        filterStartDate.value = toYmd(start);
+        filterEndDate.value = toYmd(end);
+      }
+    } catch {}
+
     searchInput.addEventListener('input', applyFilters);
     filterStartDate.addEventListener('input', applyFilters);
     filterEndDate.addEventListener('input', applyFilters);
+    const applyFiltersBtn = document.getElementById('apply-filters-btn');
+    if (applyFiltersBtn) applyFiltersBtn.addEventListener('click', (e)=>{ e.preventDefault(); applyFilters(); });
     clearFiltersBtn.addEventListener('click', () => { searchInput.value=''; filterStartDate.value=''; filterEndDate.value=''; applyFilters(); });
+    // Toggle de filtros no mobile
+    const toggleFiltersBtn = document.getElementById('toggle-filters-btn');
+    const filtersPanel = document.getElementById('filters-panel');
+    if (toggleFiltersBtn && filtersPanel) {
+      toggleFiltersBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const isHidden = filtersPanel.classList.contains('hidden');
+        if (isHidden) {
+          filtersPanel.classList.remove('hidden');
+          toggleFiltersBtn.setAttribute('aria-expanded', 'true');
+        } else {
+          filtersPanel.classList.add('hidden');
+          toggleFiltersBtn.setAttribute('aria-expanded', 'false');
+        }
+      });
+    }
+
+    // Tabs de status (Pendentes / Concluídos)
+    tabPendentesBtn = document.getElementById('tab-pendentes');
+    tabConcluidosBtn = document.getElementById('tab-concluidos');
+    tabPendentesCountEl = document.getElementById('tab-pendentes-count');
+    tabConcluidosCountEl = document.getElementById('tab-concluidos-count');
+    function updateTabUI() {
+      if (tabPendentesBtn && tabConcluidosBtn) {
+        if (currentStatusFilter === 'pendentes') {
+          tabPendentesBtn.classList.add('bg-indigo-600','text-white','shadow','ring-1','ring-indigo-600');
+          tabPendentesBtn.setAttribute('aria-pressed','true');
+          tabPendentesBtn.classList.add('tab-active');
+          tabConcluidosBtn.classList.remove('bg-indigo-600','text-white','shadow','ring-1','ring-indigo-600');
+          tabConcluidosBtn.classList.add('text-indigo-800');
+          tabConcluidosBtn.setAttribute('aria-pressed','false');
+          tabConcluidosBtn.classList.remove('tab-active');
+        } else {
+          tabConcluidosBtn.classList.add('bg-indigo-600','text-white','shadow','ring-1','ring-indigo-600');
+          tabConcluidosBtn.setAttribute('aria-pressed','true');
+          tabConcluidosBtn.classList.add('tab-active');
+          tabPendentesBtn.classList.remove('bg-indigo-600','text-white','shadow','ring-1','ring-indigo-600');
+          tabPendentesBtn.classList.add('text-indigo-800');
+          tabPendentesBtn.setAttribute('aria-pressed','false');
+          tabPendentesBtn.classList.remove('tab-active');
+        }
+      }
+    }
+    if (tabPendentesBtn) tabPendentesBtn.addEventListener('click', (e)=>{ e.preventDefault(); currentStatusFilter='pendentes'; updateTabUI(); applyFilters(); });
+    if (tabConcluidosBtn) tabConcluidosBtn.addEventListener('click', (e)=>{ e.preventDefault(); currentStatusFilter='concluidos'; updateTabUI(); applyFilters(); });
+    updateTabUI();
 
     selectOfxBtn.addEventListener('click', (e) => { e.preventDefault(); ofxFileInput.click(); });
     ofxFileInput.addEventListener('change', async () => {
@@ -338,31 +451,51 @@ async function initialize() {
     if (excluirTudoBtn) excluirTudoBtn.addEventListener('click', async (e)=>{e.preventDefault(); await handleExcluirTudo();});
     clearOfxBtn.addEventListener('click', (e)=>{ e.preventDefault(); resetOfxUI(); showToast('Importação cancelada.', 'success'); });
 
+    function applyEditModeUI(on) {
+      if (!editModeBtn) return;
+      if (on) {
+        editModeBtn.classList.remove('bg-gray-500');
+        editModeBtn.classList.add('bg-indigo-600');
+        if (transactionsTableBody) transactionsTableBody.classList.add('edit-mode');
+        if (transactionsCards) transactionsCards.classList.add('edit-mode');
+        if (window.matchMedia('(max-width: 640px)').matches && editModeBanner) {
+          editModeBanner.classList.remove('hidden');
+        }
+        if (!window.matchMedia('(max-width: 640px)').matches) {
+          showToast('Modo edição: clique numa linha para editar.', 'success');
+        }
+      } else {
+        editModeBtn.classList.remove('bg-indigo-600');
+        editModeBtn.classList.add('bg-gray-500');
+        if (transactionsTableBody) transactionsTableBody.classList.remove('edit-mode');
+        if (transactionsCards) transactionsCards.classList.remove('edit-mode');
+        if (editModeBanner) editModeBanner.classList.add('hidden');
+        try {
+          const hint = 'Modo edição: clique numa linha para editar.';
+          const successToasts = toaster ? Array.from(toaster.querySelectorAll('.toast-success')) : [];
+          successToasts.forEach(t => {
+            if ((t.textContent || '').trim() === hint) {
+              t.classList.remove('show');
+              setTimeout(() => toaster.contains(t) && toaster.removeChild(t), 300);
+            }
+          });
+        } catch {}
+      }
+    }
+
     if (editModeBtn) {
       editModeBtn.addEventListener('click', (e) => {
         e.preventDefault();
         editMode = !editMode;
-        if (editMode) {
-          editModeBtn.classList.remove('bg-gray-500');
-          editModeBtn.classList.add('bg-indigo-600');
-          showToast('Modo edição: clique numa linha para editar.', 'success');
-          if (transactionsTableBody) transactionsTableBody.classList.add('edit-mode');
-        } else {
-          editModeBtn.classList.remove('bg-indigo-600');
-          editModeBtn.classList.add('bg-gray-500');
-          if (transactionsTableBody) transactionsTableBody.classList.remove('edit-mode');
-          // Fecha o toast persistente do modo de edição, se existir
-          try {
-            const hint = 'Modo edição: clique numa linha para editar.';
-            const successToasts = toaster ? Array.from(toaster.querySelectorAll('.toast-success')) : [];
-            successToasts.forEach(t => {
-              if ((t.textContent || '').trim() === hint) {
-                t.classList.remove('show');
-                setTimeout(() => toaster.contains(t) && toaster.removeChild(t), 300);
-              }
-            });
-          } catch {}
-        }
+        applyEditModeUI(editMode);
+      });
+    }
+    if (editModeClose) {
+      editModeClose.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (!editMode) return;
+        editMode = false;
+        applyEditModeUI(false);
       });
     }
 
@@ -373,6 +506,17 @@ async function initialize() {
         const tr = e.target.closest('tr');
         if (!tr) return;
         const id = tr.getAttribute('data-id');
+        if (id) openEditModal(id);
+      });
+    }
+
+    if (transactionsCards) {
+      transactionsCards.addEventListener('click', (e) => {
+        if (!editMode) return;
+        if (e.target.closest('button')) return;
+        const card = e.target.closest('.tx-card');
+        if (!card) return;
+        const id = card.getAttribute('data-id');
         if (id) openEditModal(id);
       });
     }
@@ -431,6 +575,7 @@ async function checkUserProfile(user) {
       if (currentUserProfile.role === 'admin') { navigateTo('admin'); setupAdminUI(user); listenForPendingUsers(); listenForAllUsers(); }
       else if (currentUserProfile.status === 'approved') { navigateTo('app'); setupAppUI(user); listenForTransactions(); }
       else { navigateTo('pending'); }
+      updateAdminToggleVisibility();
     } else {
       const newUserProfile = { displayName: user.displayName, email: user.email, photoURL: user.photoURL, status: 'pending', role: 'user', createdAt: serverTimestamp() };
       await setDoc(userRef, newUserProfile);
@@ -454,23 +599,131 @@ function setupAdminUI(user) {
   adminPhotoEl.src = user.photoURL || 'https://placehold.co/40x40/gray/white?text=A';
 }
 
+// --- ADMIN LISTENERS ---
+function renderUsersTable(container, users, mode = 'all') {
+  if (!container) return;
+  if (!users || users.length === 0) {
+    container.innerHTML = `<p class="text-gray-500">Nenhum utilizador${mode === 'pending' ? ' pendente' : ''}.</p>`;
+    return;
+  }
+  const rows = users.map(u => {
+    const name = u.displayName || '—';
+    const email = u.email || '—';
+    const status = u.status || '—';
+    const created = (u.createdAt && u.createdAt.toDate) ? u.createdAt.toDate().toLocaleDateString('pt-BR') : '—';
+    const photo = u.photoURL || 'https://placehold.co/32x32/ddd/555?text=U';
+    let actions = '';
+    // Aprovar/Recusar para pendentes
+    if (mode === 'pending' || status === 'pending') {
+      actions += `<button data-action="user-approve" data-uid="${u.id}" class="px-3 py-1 rounded-md bg-green-600 text-white text-xs hover:bg-green-700">Aprovar</button>`;
+      actions += `<button data-action="user-reject" data-uid="${u.id}" class="ml-2 px-3 py-1 rounded-md bg-red-600 text-white text-xs hover:bg-red-700">Recusar</button>`;
+    }
+    // Controles de admin: tornar admin / remover admin / remover acesso
+    if (u.role !== 'admin') {
+      actions += `${actions ? '<span class=\"mx-2 text-gray-300\">|</span>' : ''}<button data-action=\"user-make-admin\" data-uid=\"${u.id}\" class=\"px-3 py-1 rounded-md bg-indigo-600 text-white text-xs hover:bg-indigo-700\">Tornar Admin</button>`;
+      actions += `<button data-action=\"user-revoke\" data-uid=\"${u.id}\" class=\"ml-2 px-3 py-1 rounded-md bg-gray-700 text-white text-xs hover:bg-black\">Remover Acesso</button>`;
+    } else {
+      actions += `${actions ? '<span class=\"mx-2 text-gray-300\">|</span>' : ''}<button data-action=\"user-remove-admin\" data-uid=\"${u.id}\" class=\"px-3 py-1 rounded-md bg-amber-600 text-white text-xs hover:bg-amber-700\">Remover Admin</button>`;
+      actions += `<button data-action=\"user-revoke\" data-uid=\"${u.id}\" class=\"ml-2 px-3 py-1 rounded-md bg-gray-700 text-white text-xs hover:bg-black\">Remover Acesso</button>`;
+    }
+    return `<tr>
+      <td class="px-3 py-2 text-sm text-gray-900"><div class="flex items-center gap-2"><img src="${photo}" class="h-8 w-8 rounded-full" onerror="this.src='https://placehold.co/32x32/ddd/555?text=U'" alt="foto"><span>${name}</span></div></td>
+      <td class="px-3 py-2 text-sm text-gray-600">${email}</td>
+      <td class="px-3 py-2 text-xs"><span class="inline-flex px-2 py-0.5 rounded-full ${status==='approved'?'bg-green-100 text-green-800':(status==='pending'?'bg-yellow-100 text-yellow-800':'bg-gray-100 text-gray-700')}">${status}</span></td>
+      <td class="px-3 py-2 text-sm text-gray-500">${created}</td>
+      <td class="px-3 py-2">${actions}</td>
+    </tr>`;
+  }).join('');
+  container.innerHTML = `<div class="overflow-x-auto border border-gray-200 rounded-lg">
+    <table class="min-w-full divide-y divide-gray-200">
+      <thead class="bg-gray-50">
+        <tr>
+          <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Utilizador</th>
+          <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+          <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+          <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Criado em</th>
+          <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
+        </tr>
+      </thead>
+      <tbody class="bg-white divide-y divide-gray-200">${rows}</tbody>
+    </table>
+  </div>`;
+}
+
+function listenForPendingUsers() {
+  try {
+    if (unsubscribePendingUsers) { unsubscribePendingUsers(); unsubscribePendingUsers = null; }
+    const colRef = isEnvironment ? collection(db, 'artifacts', appId, 'public', 'data', 'user_profiles') : collection(db, 'user_profiles');
+    const qref = query(colRef, where('status', '==', 'pending'));
+    unsubscribePendingUsers = onSnapshot(qref, (snap) => {
+      const users = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      renderUsersTable(pendingUsersList, users, 'pending');
+    }, (err) => { if (pendingUsersList) pendingUsersList.innerHTML = `<p class=\"text-red-500\">Erro: ${err.message}</p>`; });
+  } catch (e) {
+    if (pendingUsersList) pendingUsersList.innerHTML = `<p class=\"text-red-500\">Erro: ${e.message}</p>`;
+  }
+}
+
+function listenForAllUsers() {
+  try {
+    if (unsubscribeAllUsers) { unsubscribeAllUsers(); unsubscribeAllUsers = null; }
+    const colRef = isEnvironment ? collection(db, 'artifacts', appId, 'public', 'data', 'user_profiles') : collection(db, 'user_profiles');
+    unsubscribeAllUsers = onSnapshot(colRef, (snap) => {
+      const users = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      renderUsersTable(allUsersList, users);
+    }, (err) => { if (allUsersList) allUsersList.innerHTML = `<p class=\"text-red-500\">Erro: ${err.message}</p>`; });
+  } catch (e) {
+    if (allUsersList) allUsersList.innerHTML = `<p class=\"text-red-500\">Erro: ${e.message}</p>`;
+  }
+}
+
 function applyFilters() {
-  const searchTerm = searchInput.value.toLowerCase();
+  const searchTerm = (searchInput.value || '').toLowerCase();
   const startDate = filterStartDate.value ? new Date(filterStartDate.value + 'T00:00:00') : null;
   const endDate = filterEndDate.value ? new Date(filterEndDate.value + 'T23:59:59') : null;
-  const filteredTransactions = allTransactions.filter(tx => {
-    const descMatch = tx.descricao.toLowerCase().includes(searchTerm);
+  // Filtro base: texto + intervalo de datas
+  const baseFiltered = allTransactions.filter(tx => {
+    const descMatch = (tx.descricao || '').toLowerCase().includes(searchTerm);
     let txDate;
-    if (tx.dataVencimento.toDate) { txDate = tx.dataVencimento.toDate(); }
-    else { const parts = tx.dataVencimento.split('-'); txDate = new Date(parts[0], parts[1] - 1, parts[2]); }
+    if (tx.dataVencimento && tx.dataVencimento.toDate) { txDate = tx.dataVencimento.toDate(); }
+    else if (typeof tx.dataVencimento === 'string') { const parts = tx.dataVencimento.split('-'); txDate = new Date(parts[0], parts[1] - 1, parts[2]); }
+    else { txDate = new Date(tx.dataVencimento); }
     const startDateMatch = !startDate || txDate >= startDate;
     const endDateMatch = !endDate || txDate <= endDate;
     return descMatch && startDateMatch && endDateMatch;
   });
-  latestFilteredTransactions = filteredTransactions;
-  renderTransactions(filteredTransactions);
-  updateSummary(filteredTransactions);
-  updateChart(filteredTransactions);
+  // Atualiza contadores das abas com base no filtro base
+  try {
+    const pendentesCount = baseFiltered.filter(tx => tx.status !== 'pago').length;
+    const concluidosCount = baseFiltered.filter(tx => tx.status === 'pago').length;
+    if (tabPendentesCountEl) tabPendentesCountEl.textContent = pendentesCount;
+    if (tabConcluidosCountEl) tabConcluidosCountEl.textContent = concluidosCount;
+  } catch {}
+
+  // Tab de status
+  const statusFiltered = baseFiltered.filter(tx => currentStatusFilter === 'pendentes' ? tx.status !== 'pago' : tx.status === 'pago');
+  latestFilteredTransactions = statusFiltered;
+  renderTransactions(statusFiltered);
+  updateSummary(statusFiltered);
+  try { updateListTotals(statusFiltered); } catch {}
+  updateChart(baseFiltered);
+  updateMonthlyChart(baseFiltered);
+}
+
+function updateListTotals(transacoes) {
+  const el = document.getElementById('list-totals');
+  if (!el) return;
+  if (!transacoes || transacoes.length === 0) { el.innerHTML = '<span class="text-gray-500">Nenhum lançamento para exibir.</span>'; return; }
+  const qtd = transacoes.length;
+  const totalReceber = transacoes.filter(t => t.tipo === 'receber').reduce((a,b)=>a+(b.valor||0),0);
+  const totalPagar = transacoes.filter(t => t.tipo === 'pagar').reduce((a,b)=>a+(b.valor||0),0);
+  const saldo = totalReceber - totalPagar;
+  el.innerHTML = `
+    <span class="inline-flex items-center rounded-md bg-gray-100 px-3 py-1">Itens: <strong class="ml-1">${qtd}</strong></span>
+    <span class="inline-flex items-center rounded-md bg-green-100 text-green-800 px-3 py-1">Receber: <strong class="ml-1">${formatCurrency(totalReceber)}</strong></span>
+    <span class="inline-flex items-center rounded-md bg-red-100 text-red-800 px-3 py-1">Pagar: <strong class="ml-1">${formatCurrency(totalPagar)}</strong></span>
+    <span class="inline-flex items-center rounded-md ${saldo>=0?'bg-emerald-100 text-emerald-800':'bg-rose-100 text-rose-800'} px-3 py-1">Saldo da lista: <strong class="ml-1">${formatCurrency(saldo)}</strong></span>
+  `;
 }
 
 function listenForTransactions() {
@@ -483,11 +736,20 @@ function listenForTransactions() {
       if (snapshot.empty) { allTransactions = []; applyFilters(); return; }
       allTransactions = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
       applyFilters();
+      try { updateGlobalTotals(); } catch {}
     }, (error) => {
       showToast(`Erro ao carregar dados: ${error.message}`, 'error');
       transactionsTableBody.innerHTML = `<tr><td colspan="7" class="px-6 py-4 text-center text-red-500">Erro: ${error.message}. Verifique as regras de segurança.</td></tr>`;
     });
   } catch (error) { showToast(`Erro crítico: ${error.message}`, 'error'); }
+}
+
+function updateGlobalTotals() {
+  const el = document.getElementById('global-totals');
+  if (!el) return;
+  const arr = Array.isArray(allTransactions) ? allTransactions : [];
+  const qtd = arr.length;
+  el.innerHTML = `<span class="inline-flex items-center rounded-md bg-white/70 px-3 py-1">Todos: <strong class=\"ml-1\">${qtd}</strong></span>`;
 }
 
 function renderTransactions(transacoes) {
@@ -496,7 +758,12 @@ function renderTransactions(transacoes) {
     const dateB = b.dataVencimento.toDate ? b.dataVencimento.toDate() : new Date(b.dataVencimento);
     return dateB - dateA;
   });
-  if (transacoes.length === 0) { transactionsTableBody.innerHTML = `<tr><td colspan="7" class="px-6 py-4 text-center text-gray-500">Nenhum lançamento encontrado para os filtros atuais.</td></tr>`; return; }
+  if (transactionsCards) transactionsCards.innerHTML = '';
+  if (transacoes.length === 0) { 
+    transactionsTableBody.innerHTML = `<tr><td colspan=\"7\" class=\"px-6 py-4 text-center text-gray-500\">Nenhum lançamento encontrado para os filtros atuais.</td></tr>`; 
+    if (transactionsCards) transactionsCards.innerHTML = `<p class=\"text-center text-gray-500\">Nenhum lançamento encontrado para os filtros atuais.</p>`;
+    return; 
+  }
   transactionsTableBody.innerHTML = '';
   transacoes.forEach(tx => {
     const row = document.createElement('tr');
@@ -521,21 +788,72 @@ function renderTransactions(transacoes) {
         <button data-action="delete" data-id="${tx.id}" class="w-full sm:w-auto mt-2 sm:mt-0 sm:ml-2 px-3 py-1 rounded-md text-white bg-red-500 hover:bg-red-600 transition-all duration-200 hover:scale-105">Excluir</button>
       </td>`;
     transactionsTableBody.appendChild(row);
+    // Também renderiza card para mobile
+    if (transactionsCards) {
+      const card = document.createElement('div');
+      card.className = 'tx-card rounded-lg border border-gray-200 bg-white p-3 shadow-sm';
+      card.setAttribute('data-id', tx.id);
+      const categoriaTexto = tx.categoria || 'N/D';
+      const statusTexto = tx.status === 'pago' ? 'Pago/Recebido' : 'Pendente';
+      const statusClasse = tx.status === 'pago' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800';
+      const acaoBotaoTexto = tx.status === 'pago' ? (tx.tipo === 'receber' ? 'Estornar' : 'Cancelar Pgto') : (tx.tipo === 'receber' ? 'Receber' : 'Pagar');
+      const acaoBotaoClasse = tx.status === 'pago' ? 'bg-gray-400 hover:bg-gray-500' : (tx.tipo === 'receber' ? 'bg-green-500 hover:bg-green-600' : 'bg-blue-500 hover:bg-blue-600');
+      const valorClasse = tx.tipo === 'receber' ? 'text-green-600' : 'text-red-600';
+      card.innerHTML = `
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <p class="text-sm font-medium text-gray-900 break-words">${tx.descricao}</p>
+            <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+              <span class="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5">${categoriaTexto}</span>
+              <span>• ${tx.tipo === 'receber' ? 'A Receber' : 'A Pagar'}</span>
+              <span>• ${formatDate(tx.dataVencimento)}</span>
+            </div>
+          </div>
+          <div class="text-right">
+            <p class="text-sm ${valorClasse} font-semibold">${formatCurrency(tx.valor)}</p>
+            <span class="mt-1 inline-flex px-2 py-0.5 text-[11px] leading-5 font-semibold rounded-full ${statusClasse}">${statusTexto}</span>
+          </div>
+        </div>
+        <div class="mt-3 flex flex-col gap-2">
+          <button data-action="toggle-status" data-id="${tx.id}" data-status="${tx.status}" class="w-full px-3 py-2 rounded-md text-white ${acaoBotaoClasse} transition-all duration-200">${acaoBotaoTexto}</button>
+          <button data-action="delete" data-id="${tx.id}" class="w-full px-3 py-2 rounded-md text-white bg-red-500 hover:bg-red-600 transition-all duration-200">Excluir</button>
+        </div>`;
+      transactionsCards.appendChild(card);
+    }
   });
 }
 
 function updateSummary(transacoes) {
-  let totalReceber = 0, totalPagar = 0, saldo = 0;
+  let totalReceber = 0, totalPagar = 0;
+  // Totais (pendentes) respeitam os filtros atuais
   transacoes.forEach(tx => {
-    if (tx.tipo === 'receber') { if (tx.status === 'pendente') totalReceber += tx.valor; else saldo += tx.valor; }
-    else { if (tx.status === 'pendente') totalPagar += tx.valor; else saldo -= tx.valor; }
+    if (tx.status === 'pendente') {
+      if (tx.tipo === 'receber') totalReceber += (tx.valor || 0);
+      else totalPagar += (tx.valor || 0);
+    }
   });
+  // Saldo global (baseado no pago) ignora filtros e usa TODAS as transações
+  const saldo = computeGlobalSaldo();
   totalReceberEl.textContent = formatCurrency(totalReceber);
   totalPagarEl.textContent = formatCurrency(totalPagar);
   saldoAtualEl.textContent = formatCurrency(saldo);
   if (saldo < 0) { saldoAtualEl.classList.remove('text-blue-600','text-green-600'); saldoAtualEl.classList.add('text-red-600'); }
   else if (saldo > 0) { saldoAtualEl.classList.remove('text-blue-600','text-red-600'); saldoAtualEl.classList.add('text-green-600'); }
   else { saldoAtualEl.classList.remove('text-green-600','text-red-600'); saldoAtualEl.classList.add('text-blue-600'); }
+}
+
+function computeGlobalSaldo() {
+  try {
+    const arr = Array.isArray(allTransactions) ? allTransactions : [];
+    let s = 0;
+    arr.forEach(tx => {
+      if (tx && tx.status === 'pago') {
+        const val = tx.valor || 0;
+        if (tx.tipo === 'receber') s += val; else s -= val;
+      }
+    });
+    return s;
+  } catch { return 0; }
 }
 
 function updateChart(transacoes) {
@@ -554,6 +872,35 @@ function updateChart(transacoes) {
   }
 }
 
+function updateMonthlyChart(transacoes) {
+  if (!monthlyChartCanvas) return;
+  const pagos = transacoes.filter(tx => tx.tipo === 'pagar' && tx.status === 'pago');
+  const byMonth = pagos.reduce((acc, tx) => {
+    const d = tx.dataVencimento && tx.dataVencimento.toDate ? tx.dataVencimento.toDate() : new Date(tx.dataVencimento);
+    if (isNaN(d)) return acc;
+    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    acc[key] = (acc[key] || 0) + (tx.valor || 0);
+    return acc;
+  }, {});
+  const keys = Object.keys(byMonth).sort();
+  // Mantém últimos 12 meses se houver mais
+  const labels = keys.slice(-12);
+  const data = labels.map(k => byMonth[k]);
+  if (monthlyChartInstance) monthlyChartInstance.destroy();
+  if (labels.length > 0) {
+    const ctx = monthlyChartCanvas.getContext('2d');
+    monthlyChartInstance = new Chart(ctx, {
+      type: 'bar',
+      data: { labels: labels.map(k => k.replace('-', '/')), datasets: [{ label: 'Gastos (R$)', data, backgroundColor: '#60a5fa' }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+    });
+  } else {
+    const ctx = monthlyChartCanvas.getContext('2d');
+    ctx.clearRect(0,0,monthlyChartCanvas.width,monthlyChartCanvas.height);
+    ctx.textAlign='center'; ctx.fillStyle='#6b7280'; ctx.font='16px Inter'; ctx.fillText('Sem gastos pagos no período.', monthlyChartCanvas.width/2, monthlyChartCanvas.height/2);
+  }
+}
+
 async function handleAddTransaction(e) {
   e.preventDefault(); setLoading(true);
   if (!transacoesRef) { showToast('Erro: A coleção de transações não foi inicializada.', 'error'); setLoading(false); return; }
@@ -567,7 +914,57 @@ async function handleAddTransaction(e) {
 
 async function handleListActions(e) {
   const target = e.target.closest('button'); if (!target) return;
-  const action = target.dataset.action; const id = target.dataset.id; if (!action || !id) return;
+  const action = target.dataset.action; const id = target.dataset.id; if (!action) return;
+  // Admin user actions
+  if (action === 'user-approve' || action === 'user-reject') {
+    const uid = target.dataset.uid;
+    if (!uid) return;
+    try {
+      setLoading(true);
+      const userRef = isEnvironment ? doc(db, 'artifacts', appId, 'public', 'data', 'user_profiles', uid) : doc(db, 'user_profiles', uid);
+      if (action === 'user-approve') {
+        await updateDoc(userRef, { status: 'approved' });
+        showToast('Utilizador aprovado!', 'success');
+      } else {
+        // Recusar: opcionalmente podemos apagar ou marcar como recusado; aqui vamos marcar como 'rejected'
+        await updateDoc(userRef, { status: 'rejected' });
+        showToast('Utilizador recusado.', 'success');
+      }
+    } catch (err) {
+      showToast(`Erro ao atualizar utilizador: ${err.message}`, 'error');
+    } finally { setLoading(false); }
+    return;
+  }
+  if (action === 'user-make-admin' || action === 'user-revoke' || action === 'user-remove-admin') {
+    const uid = target.dataset.uid;
+    if (!uid) return;
+    try {
+      let confirmText, okText;
+      if (action === 'user-make-admin') { confirmText = 'Conceder permissões de administrador a este utilizador?'; okText = 'Tornar Admin'; }
+      else if (action === 'user-remove-admin') { confirmText = 'Remover permissões de administrador deste utilizador?'; okText = 'Remover Admin'; }
+      else { confirmText = 'Remover o acesso deste utilizador?'; okText = 'Remover'; }
+      const confirmed = await showConfirmModal('Confirmar ação', confirmText, okText);
+      if (!confirmed) return;
+      setLoading(true);
+      const userRef = isEnvironment ? doc(db, 'artifacts', appId, 'public', 'data', 'user_profiles', uid) : doc(db, 'user_profiles', uid);
+      if (action === 'user-make-admin') {
+        await updateDoc(userRef, { role: 'admin', status: 'approved' });
+        showToast('Utilizador tornou-se admin.', 'success');
+      } else if (action === 'user-remove-admin') {
+        await updateDoc(userRef, { role: 'user' });
+        showToast('Permissões de admin removidas.', 'success');
+      } else {
+        await updateDoc(userRef, { status: 'revoked' });
+        showToast('Acesso removido.', 'success');
+      }
+    } catch (err) {
+      showToast(`Erro ao aplicar ação: ${err.message}`, 'error');
+    } finally { setLoading(false); }
+    return;
+  }
+  // Transaction actions
+  const idPresent = !!id;
+  if (!idPresent) return;
   if (transacoesRef && (action === 'toggle-status' || action === 'delete')) {
     const docRef = doc(transacoesRef, id);
     if (action === 'toggle-status') { const currentStatus = target.dataset.status; const newStatus = currentStatus === 'pendente' ? 'pago' : 'pendente'; setLoading(true); try { await updateDoc(docRef, { status: newStatus }); showToast('Status atualizado!', 'success'); } catch (error) { showToast(`Erro: ${error.message}`, 'error'); } finally { setLoading(false); } }
@@ -612,6 +1009,7 @@ document.addEventListener('DOMContentLoaded', () => {
   formData = document.getElementById('data');
 
   transactionsTableBody = document.getElementById('transactions-table-body');
+  transactionsCards = document.getElementById('transactions-cards');
   totalReceberEl = document.getElementById('total-receber');
   totalPagarEl = document.getElementById('total-pagar');
   saldoAtualEl = document.getElementById('saldo-atual');
@@ -650,11 +1048,14 @@ document.addEventListener('DOMContentLoaded', () => {
   filterEndDate = document.getElementById('filter-end-date');
   clearFiltersBtn = document.getElementById('clear-filters-btn');
   categoryChartCanvas = document.getElementById('category-chart');
+  monthlyChartCanvas = document.getElementById('monthly-chart');
   
   couponInput = document.getElementById('coupon-input');
   applyCouponBtn = document.getElementById('apply-coupon-btn');
   couponMessage = document.getElementById('coupon-message');
   editModeBtn = document.getElementById('edit-mode-btn');
+  editModeBanner = document.getElementById('edit-mode-banner');
+  editModeClose = document.getElementById('edit-mode-close');
 
   ofxFileInput = document.getElementById('ofx-file-input');
   selectOfxBtn = document.getElementById('select-ofx-btn');
