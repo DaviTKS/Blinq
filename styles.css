@@ -14,6 +14,14 @@ body {
   z-index: 100;
 }
 
+/* Esconde notificações em telas pequenas (mobile) */
+@media (max-width: 640px) {
+  #toaster {
+    display: none !important;
+    pointer-events: none;
+  }
+}
+
 .toast {
   padding: 1rem 1.5rem;
   border-radius: 0.5rem;
